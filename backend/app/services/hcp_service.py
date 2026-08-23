@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.hcp import HCP
 from app.schemas.hcp_schema import HCPCreate
 from app.schemas.hcp_schema import HCPCreate, HCPUpdate
+from app.models.interaction import Interaction
+from sqlalchemy.exc import IntegrityError
 
 class HCPService:
 
@@ -102,8 +104,23 @@ class HCPService:
                 "message": "Doctor not found"
             }
 
-        db.delete(doctor)
-        db.commit()
+        # Prevent deletion if there are interactions referencing this HCP
+        interaction_count = db.query(Interaction).filter(Interaction.hcp_id == hcp_id).count()
+        if interaction_count > 0:
+            return {
+                "success": False,
+                "message": "Cannot delete doctor with existing interactions"
+            }
+
+        try:
+            db.delete(doctor)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return {
+                "success": False,
+                "message": "Failed to delete doctor due to database constraints"
+            }
 
         return {
             "success": True,
