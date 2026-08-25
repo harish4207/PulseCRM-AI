@@ -113,15 +113,17 @@ def create_hcp(state: LogMeetingState) -> dict:
     hospital = (state.extraction.get("hospital") or "Not Specified").strip()
     specialization = (state.extraction.get("specialization") or "General Medicine").strip()
     city = (state.extraction.get("city") or "Not Specified").strip()
+    phone = (state.extraction.get("phone") or None)
+    email = (state.extraction.get("email") or None)
 
-    # Create new HCP using ONLY information actually present in transcript (phone/email remain null)
+    # Create new HCP using ONLY information actually present in transcript.
     new_hcp = HCP(
         doctor_name=doctor_name,
         specialization=specialization,
         hospital=hospital,
         city=city,
-        phone=None,
-        email=None,
+        phone=phone,
+        email=email,
     )
     _CURRENT_DB.add(new_hcp)
     _CURRENT_DB.commit()
