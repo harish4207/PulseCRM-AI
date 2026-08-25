@@ -139,7 +139,7 @@ export function Interactions() {
             />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>
               Filter:
             </span>
@@ -153,7 +153,7 @@ export function Interactions() {
                 type="button"
                 onClick={() => setFilterMode(tab.value)}
                 style={{
-                  padding: "0.3rem 0.75rem",
+                  padding: "0.35rem 0.75rem",
                   borderRadius: "9999px",
                   fontSize: "0.75rem",
                   fontWeight: 600,
@@ -203,7 +203,7 @@ export function Interactions() {
                 key={item.id}
                 className="pulse-card pulse-card-interactive"
                 style={{
-                  padding: "1.25rem 1.5rem",
+                  padding: "1rem 1.25rem",
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.75rem",
@@ -212,8 +212,8 @@ export function Interactions() {
                 onClick={() => setSelectedInteraction(item)}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
-                    <span style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a" }}>
                       Healthcare Professional #{item.hcp_id}
                     </span>
                     {item.ai_summary && (
@@ -238,7 +238,7 @@ export function Interactions() {
                   </StatusBadge>
                 </div>
 
-                <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.5, margin: 0 }}>
+                <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.5, margin: 0, wordBreak: "break-word" }}>
                   {item.meeting_notes}
                 </p>
 
@@ -270,6 +270,9 @@ export function Interactions() {
         {/* Modal / Detail Drawer for selected interaction */}
         {selectedInteraction && (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Interaction details"
             style={{
               position: "fixed",
               inset: 0,
@@ -279,17 +282,20 @@ export function Interactions() {
               alignItems: "center",
               justifyContent: "center",
               zIndex: 50,
-              padding: "1rem",
+              padding: "0.75rem",
+              overflowY: "auto",
             }}
             onClick={() => setSelectedInteraction(null)}
           >
             <div
               className="pulse-card"
               style={{
-                width: "100%",
+                width: "95vw",
                 maxWidth: "600px",
-                padding: "1.75rem",
+                padding: "1.25rem sm:padding-1.75rem",
                 backgroundColor: "#ffffff",
+                maxHeight: "90vh",
+                overflowY: "auto",
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -298,14 +304,15 @@ export function Interactions() {
                   <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#0284c7" }}>
                     Interaction #{selectedInteraction.id} Details
                   </div>
-                  <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#0f172a" }}>
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
                     Doctor #{selectedInteraction.hcp_id}
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedInteraction(null)}
-                  style={{ color: "#64748b", padding: "0.25rem" }}
+                  style={{ color: "#64748b", padding: "0.4rem", minWidth: "36px", minHeight: "36px" }}
+                  aria-label="Close dialog"
                 >
                   <CloseIcon fontSize="small" />
                 </button>
@@ -334,6 +341,7 @@ export function Interactions() {
                       fontSize: "0.875rem",
                       color: "#334155",
                       lineHeight: 1.6,
+                      wordBreak: "break-word",
                     }}
                   >
                     {selectedInteraction.meeting_notes}
@@ -354,6 +362,7 @@ export function Interactions() {
                         fontSize: "0.875rem",
                         color: "#166534",
                         lineHeight: 1.6,
+                        wordBreak: "break-word",
                       }}
                     >
                       {selectedInteraction.ai_summary}
@@ -379,6 +388,7 @@ export function Interactions() {
                   onClick={() => setSelectedInteraction(null)}
                   style={{
                     padding: "0.55rem 1.25rem",
+                    minHeight: "40px",
                     borderRadius: "8px",
                     backgroundColor: "#f1f5f9",
                     color: "#334155",

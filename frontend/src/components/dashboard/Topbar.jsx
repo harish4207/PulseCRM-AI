@@ -12,6 +12,7 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
 
   return (
     <header
+      className="px-3 md:px-6"
       style={{
         height: "64px",
         backgroundColor: "#ffffff",
@@ -19,21 +20,20 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 1.5rem",
         position: "sticky",
         top: 0,
         zIndex: 30,
       }}
     >
       {/* Left title & mobile trigger */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}>
         {onMenuClick && (
           <button
             type="button"
             onClick={onMenuClick}
             className="md:hidden"
             style={{
-              padding: "0.4rem",
+              padding: "0.5rem",
               borderRadius: "8px",
               border: "1px solid #e2e8f0",
               color: "#475569",
@@ -41,6 +41,9 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "#f8fafc",
+              minWidth: "44px",
+              minHeight: "44px",
+              flexShrink: 0,
             }}
             aria-label="Open navigation"
           >
@@ -48,26 +51,32 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
           </button>
         )}
 
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.65rem",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               color: "#64748b",
               lineHeight: 1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             PulseCRM Platform
           </div>
           <h2
             style={{
-              fontSize: "1.15rem",
+              fontSize: "1.05rem",
               fontWeight: 700,
               color: "#0f172a",
               lineHeight: 1.25,
               marginTop: "2px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {title}

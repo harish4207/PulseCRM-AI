@@ -99,11 +99,7 @@ export function Dashboard() {
           <LoadingState label="Fetching territory intelligence..." />
         ) : (
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-              gap: "1rem",
-            }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
           >
             <StatCard
               label="Total HCPs"
@@ -138,15 +134,10 @@ export function Dashboard() {
 
         {/* Main Content Grid: Recent Interactions (65%) & Follow-ups / Quick Actions (35%) */}
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-            gap: "1.5rem",
-            alignItems: "start",
-          }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
         >
           {/* Left Column: Recent Interactions */}
-          <div className="pulse-card" style={{ padding: "1.5rem", gridColumn: "span 2" }}>
+          <div className="pulse-card col-span-1 lg:col-span-2 p-4 sm:p-6">
             <div
               style={{
                 display: "flex",
@@ -207,7 +198,7 @@ export function Dashboard() {
                 }
               />
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <div className="table-responsive">
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #e2e8f0" }}>

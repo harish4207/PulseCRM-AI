@@ -256,13 +256,7 @@ export function Doctors() {
             }
           />
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: "1.25rem",
-            }}
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredHcps.map((hcp) => (
               <div
                 key={hcp.id}
@@ -278,8 +272,8 @@ export function Doctors() {
                 <div>
                   {/* Top: Name & Specialty */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                    <div>
-                      <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
                         {hcp.doctor_name}
                       </h3>
                       <div style={{ marginTop: "0.35rem" }}>
@@ -293,13 +287,19 @@ export function Doctors() {
                       type="button"
                       onClick={() => handleDeleteHcp(hcp.id, hcp.doctor_name)}
                       style={{
-                        padding: "0.3rem",
+                        padding: "0.4rem",
                         color: "#94a3b8",
                         borderRadius: "6px",
+                        minWidth: "36px",
+                        minHeight: "36px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
                       onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
                       title="Remove HCP"
+                      aria-label={`Remove ${hcp.doctor_name}`}
                     >
                       <DeleteIcon style={{ fontSize: "1.15rem" }} />
                     </button>
@@ -308,12 +308,12 @@ export function Doctors() {
                   {/* Hospital & Location */}
                   <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", color: "#475569" }}>
-                      <HospitalIcon style={{ fontSize: "1rem", color: "#0284c7" }} />
-                      <span>{hcp.hospital}</span>
+                      <HospitalIcon style={{ fontSize: "1rem", color: "#0284c7", flexShrink: 0 }} />
+                      <span style={{ wordBreak: "break-word" }}>{hcp.hospital}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", color: "#64748b" }}>
-                      <LocationIcon style={{ fontSize: "1rem", color: "#0d9488" }} />
-                      <span>{hcp.city}</span>
+                      <LocationIcon style={{ fontSize: "1rem", color: "#0d9488", flexShrink: 0 }} />
+                      <span style={{ wordBreak: "break-word" }}>{hcp.city}</span>
                     </div>
                   </div>
                 </div>
@@ -332,12 +332,12 @@ export function Doctors() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <PhoneIcon style={{ fontSize: "0.85rem" }} />
+                    <PhoneIcon style={{ fontSize: "0.85rem", flexShrink: 0 }} />
                     <span>{hcp.phone}</span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <EmailIcon style={{ fontSize: "0.85rem" }} />
-                    <span>{hcp.email}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", overflow: "hidden" }}>
+                    <EmailIcon style={{ fontSize: "0.85rem", flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hcp.email}</span>
                   </div>
                 </div>
               </div>
@@ -348,6 +348,9 @@ export function Doctors() {
         {/* Modal: Add New HCP */}
         {isModalOpen && (
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Register Healthcare Professional"
             style={{
               position: "fixed",
               inset: 0,
@@ -357,28 +360,32 @@ export function Doctors() {
               alignItems: "center",
               justifyContent: "center",
               zIndex: 50,
-              padding: "1rem",
+              padding: "0.75rem",
+              overflowY: "auto",
             }}
             onClick={() => setIsModalOpen(false)}
           >
             <div
               className="pulse-card"
               style={{
-                width: "100%",
+                width: "95vw",
                 maxWidth: "500px",
-                padding: "1.75rem",
+                padding: "1.25rem sm:padding-1.75rem",
                 backgroundColor: "#ffffff",
+                maxHeight: "90vh",
+                overflowY: "auto",
               }}
               onClick={(e) => e.stopPropagation()}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-                <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#0f172a" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
                   Register Healthcare Professional
                 </h3>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  style={{ color: "#64748b", padding: "0.25rem" }}
+                  style={{ color: "#64748b", padding: "0.4rem", minWidth: "36px", minHeight: "36px" }}
+                  aria-label="Close dialog"
                 >
                   <CloseIcon fontSize="small" />
                 </button>
@@ -414,7 +421,7 @@ export function Doctors() {
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: "0.25rem" }}>
                       Specialization
@@ -457,7 +464,7 @@ export function Doctors() {
                   />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: "0.25rem" }}>
                       Phone
@@ -489,14 +496,14 @@ export function Doctors() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    style={{ padding: "0.55rem 1rem", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#ffffff", fontSize: "0.8125rem", fontWeight: 600, color: "#475569" }}
+                    style={{ padding: "0.6rem 1rem", minHeight: "40px", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#ffffff", fontSize: "0.8125rem", fontWeight: 600, color: "#475569" }}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={modalSaving}
-                    style={{ padding: "0.55rem 1.25rem", borderRadius: "8px", backgroundColor: "#0284c7", color: "#ffffff", fontSize: "0.8125rem", fontWeight: 600, cursor: modalSaving ? "not-allowed" : "pointer" }}
+                    style={{ padding: "0.6rem 1.25rem", minHeight: "40px", borderRadius: "8px", backgroundColor: "#0284c7", color: "#ffffff", fontSize: "0.8125rem", fontWeight: 600, cursor: modalSaving ? "not-allowed" : "pointer" }}
                   >
                     {modalSaving ? "Saving..." : "Save HCP Record"}
                   </button>

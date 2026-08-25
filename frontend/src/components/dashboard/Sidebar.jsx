@@ -30,6 +30,7 @@ export function Sidebar({ onClose = null, isMobile = false }) {
   const { user } = useSelector((state) => state.auth ?? {});
 
   const handleLogout = () => {
+    if (isMobile && onClose) onClose();
     dispatch(logout());
     navigate("/login", { replace: true });
   };
@@ -40,6 +41,7 @@ export function Sidebar({ onClose = null, isMobile = false }) {
     <aside
       style={{
         width: isMobile ? "280px" : "240px",
+        maxWidth: isMobile ? "85vw" : "240px",
         height: "100vh",
         backgroundColor: "#ffffff",
         borderRight: "1px solid #e2e8f0",
@@ -51,6 +53,7 @@ export function Sidebar({ onClose = null, isMobile = false }) {
         top: 0,
         flexShrink: 0,
         zIndex: 40,
+        overflowY: "auto",
       }}
     >
       <div>
@@ -72,11 +75,13 @@ export function Sidebar({ onClose = null, isMobile = false }) {
               onClick={onClose}
               style={{
                 color: "#64748b",
-                padding: "0.3rem",
+                padding: "0.5rem",
                 borderRadius: "8px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                minWidth: "44px",
+                minHeight: "44px",
               }}
               aria-label="Close menu"
             >
@@ -86,7 +91,7 @@ export function Sidebar({ onClose = null, isMobile = false }) {
         </div>
 
         {/* Navigation links */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -98,7 +103,8 @@ export function Sidebar({ onClose = null, isMobile = false }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "0.65rem 0.8rem",
+                  padding: "0.7rem 0.85rem",
+                  minHeight: "44px",
                   borderRadius: "10px",
                   textDecoration: "none",
                   fontSize: "0.875rem",
@@ -109,31 +115,35 @@ export function Sidebar({ onClose = null, isMobile = false }) {
                   border: isActive ? "1px solid #bae6fd" : "1px solid transparent",
                 })}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <Icon
-                    style={{
-                      fontSize: "1.25rem",
-                      color: "inherit",
-                    }}
-                  />
-                  <span>{item.label}</span>
-                </div>
+                {({ isActive }) => (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <Icon
+                        style={{
+                          fontSize: "1.25rem",
+                          color: "inherit",
+                        }}
+                      />
+                      <span>{item.label}</span>
+                    </div>
 
-                {item.highlight && (
-                  <span
-                    style={{
-                      fontSize: "0.65rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      backgroundColor: "#0284c7",
-                      color: "#ffffff",
-                      padding: "0.15rem 0.45rem",
-                      borderRadius: "9999px",
-                    }}
-                  >
-                    AI
-                  </span>
+                    {item.highlight && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          backgroundColor: "#0284c7",
+                          color: "#ffffff",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "9999px",
+                        }}
+                      >
+                        AI
+                      </span>
+                    )}
+                  </>
                 )}
               </NavLink>
             );

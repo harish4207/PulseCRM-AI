@@ -73,13 +73,7 @@ export function Analytics() {
         ) : (
           <>
             {/* KPI Cards */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-                gap: "1rem",
-              }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatCard
                 label="Physician Reach"
                 value={totalHcps}
@@ -111,13 +105,7 @@ export function Analytics() {
             </div>
 
             {/* Specialty Coverage Breakdown */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-                gap: "1.5rem",
-              }}
-            >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Specialty Distribution */}
               <div className="pulse-card" style={{ padding: "1.5rem" }}>
                 <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", marginBottom: "0.25rem" }}>

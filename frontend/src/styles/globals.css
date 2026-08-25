@@ -89,6 +89,29 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12) !important;
 }
 
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--color-primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* Table Responsive Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+.table-responsive table {
+  min-width: 580px;
+}
+
+/* Word wrapping and text safety */
+.break-words-safe {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 /* Transitions and interactive cards */
 .pulse-card {
   background: #ffffff;
@@ -96,6 +119,8 @@ input:focus, textarea:focus, select:focus {
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
   transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .pulse-card:hover {
@@ -105,6 +130,13 @@ input:focus, textarea:focus, select:focus {
 .pulse-card-interactive:hover {
   border-color: #cbd5e1;
   transform: translateY(-1px);
+}
+
+/* Responsive Padding Adjustments */
+@media (max-width: 640px) {
+  .pulse-card {
+    border-radius: 12px;
+  }
 }
 
 /* Subtle badge styles */
@@ -117,6 +149,47 @@ input:focus, textarea:focus, select:focus {
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-box {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  box-shadow: 0 4px 8px rgba(2, 132, 199, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
 }
 
 /* Animations */

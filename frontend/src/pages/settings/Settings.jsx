@@ -34,7 +34,7 @@ export function Settings() {
         />
 
         {/* Profile Card */}
-        <div className="pulse-card" style={{ padding: "1.5rem" }}>
+        <div className="pulse-card p-4 sm:p-6">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.25rem" }}>
             <UserIcon style={{ color: "#0284c7" }} />
             <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
@@ -42,7 +42,7 @@ export function Settings() {
             </h3>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.25rem" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
                 Full Name

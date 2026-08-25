@@ -206,13 +206,14 @@ export function Register() {
 
       {/* Right form pane */}
       <div
+        className="p-4 sm:p-8"
         style={{
           flex: 1,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          padding: "2rem",
+          width: "100%",
         }}
       >
         <div style={{ width: "100%", maxWidth: "400px" }}>

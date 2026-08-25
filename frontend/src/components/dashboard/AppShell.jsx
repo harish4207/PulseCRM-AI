@@ -1,9 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 export function AppShell({ title = "Dashboard", children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
@@ -15,18 +26,21 @@ export function AppShell({ title = "Dashboard", children }) {
       {/* Mobile Drawer Overlay */}
       {mobileOpen && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation menu"
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.4)",
-            backdropFilter: "blur(2px)",
+            backgroundColor: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(3px)",
             zIndex: 50,
             display: "flex",
           }}
           onClick={() => setMobileOpen(false)}
         >
           <div
-            style={{ height: "100%", backgroundColor: "#ffffff" }}
+            style={{ height: "100%", backgroundColor: "#ffffff", maxWidth: "85vw" }}
             onClick={(e) => e.stopPropagation()}
           >
             <Sidebar isMobile onClose={() => setMobileOpen(false)} />
@@ -47,9 +61,9 @@ export function AppShell({ title = "Dashboard", children }) {
         <Topbar title={title} onMenuClick={() => setMobileOpen(true)} />
 
         <main
+          className="p-3 sm:p-5 md:p-7"
           style={{
             flex: 1,
-            padding: "1.75rem",
             maxWidth: "1400px",
             width: "100%",
             margin: "0 auto",

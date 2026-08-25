@@ -356,14 +356,14 @@ export function LogMeeting() {
         />
 
         {/* STEP 1: Meeting Input Canvas (Voice & Text) */}
-        <div className="pulse-card" style={{ padding: "1.5rem" }}>
+        <div className="pulse-card p-4 sm:p-6">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "0.5rem" }}>
             <label style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
               Field Notes / Voice Transcript
             </label>
 
             {/* Sample Prompts */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
               <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
                 Try sample:
               </span>
@@ -375,7 +375,8 @@ export function LogMeeting() {
                   style={{
                     fontSize: "0.72rem",
                     fontWeight: 600,
-                    padding: "0.25rem 0.6rem",
+                    padding: "0.3rem 0.6rem",
+                    minHeight: "32px",
                     borderRadius: "9999px",
                     border: "1px solid #bae6fd",
                     backgroundColor: "#f0f9ff",
@@ -475,7 +476,7 @@ export function LogMeeting() {
             }}
           >
             {/* Voice controls */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
               {!isRecording ? (
                 <button
                   type="button"
@@ -486,6 +487,7 @@ export function LogMeeting() {
                     alignItems: "center",
                     gap: "0.4rem",
                     padding: "0.65rem 1rem",
+                    minHeight: "44px",
                     borderRadius: "10px",
                     backgroundColor: isTranscribing ? "#f1f5f9" : "#ffffff",
                     border: "1px solid #cbd5e1",
@@ -498,7 +500,7 @@ export function LogMeeting() {
                   <span>Start Recording</span>
                 </button>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
                   <button
                     type="button"
                     onClick={stopRecording}
@@ -507,6 +509,7 @@ export function LogMeeting() {
                       alignItems: "center",
                       gap: "0.4rem",
                       padding: "0.65rem 1.1rem",
+                      minHeight: "44px",
                       borderRadius: "10px",
                       backgroundColor: "#dc2626",
                       color: "#ffffff",
@@ -540,6 +543,7 @@ export function LogMeeting() {
                     alignItems: "center",
                     gap: "0.4rem",
                     padding: "0.55rem 0.9rem",
+                    minHeight: "44px",
                     borderRadius: "8px",
                     backgroundColor: "#fff7ed",
                     border: "1px solid #fde68a",
@@ -562,8 +566,10 @@ export function LogMeeting() {
               style={{
                 display: "inline-flex",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: "0.5rem",
                 padding: "0.75rem 1.5rem",
+                minHeight: "44px",
                 borderRadius: "10px",
                 backgroundColor:
                   !meetingText.trim() || pipelineState === "processing" || isRecording || isTranscribing
@@ -590,9 +596,8 @@ export function LogMeeting() {
         {/* STEP 2: Processing Progress State */}
         {pipelineState === "processing" && (
           <div
-            className="pulse-card"
+            className="pulse-card p-4 sm:p-6"
             style={{
-              padding: "1.5rem",
               backgroundColor: "#f0f9ff",
               borderColor: "#bae6fd",
             }}
@@ -639,10 +644,11 @@ export function LogMeeting() {
                           height: 8,
                           borderRadius: "50%",
                           backgroundColor: isCurrent ? "#0284c7" : "#cbd5e1",
+                          flexShrink: 0,
                         }}
                       />
                     )}
-                    <span>{step}</span>
+                    <span style={{ wordBreak: "break-word" }}>{step}</span>
                   </div>
                 );
               })}
@@ -669,9 +675,9 @@ export function LogMeeting() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
                 {saveResult?.is_new_hcp ? (
-                  <NewHcpIcon style={{ color: "#d97706", fontSize: "1.35rem" }} />
+                  <NewHcpIcon style={{ color: "#d97706", fontSize: "1.35rem", flexShrink: 0 }} />
                 ) : (
-                  <CheckIcon style={{ color: "#059669", fontSize: "1.25rem" }} />
+                  <CheckIcon style={{ color: "#059669", fontSize: "1.25rem", flexShrink: 0 }} />
                 )}
                 <span
                   style={{
@@ -691,29 +697,23 @@ export function LogMeeting() {
             </div>
 
             {/* Extracted Data Grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: "1rem",
-              }}
-            >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Doctor Card */}
-              <div className="pulse-card" style={{ padding: "1.25rem" }}>
+              <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <DoctorIcon style={{ fontSize: "1.15rem", color: "#0284c7" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Doctor Identified</span>
                 </div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
+                <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
                   {extractedData.doctor_name || "Unknown Doctor"}
                 </div>
-                <div style={{ marginTop: "0.4rem", fontSize: "0.85rem", color: "#475569" }}>
+                <div style={{ marginTop: "0.4rem", fontSize: "0.85rem", color: "#475569", wordBreak: "break-word" }}>
                   Specialization: {extractedData.specialization || "Not provided"}
                 </div>
-                <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#475569" }}>
+                <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#475569", wordBreak: "break-word" }}>
                   Phone: {extractedData.phone || "Not provided"}
                 </div>
-                <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#475569" }}>
+                <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#475569", wordBreak: "break-word" }}>
                   Email: {extractedData.email || "Not provided"}
                 </div>
                 {saveResult?.is_new_hcp && (
@@ -724,12 +724,12 @@ export function LogMeeting() {
               </div>
 
               {/* Hospital & City Card */}
-              <div className="pulse-card" style={{ padding: "1.25rem" }}>
+              <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <HospitalIcon style={{ fontSize: "1.15rem", color: "#0d9488" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Hospital & Location</span>
                 </div>
-                <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
                   {extractedData.hospital || "Not Specified"}
                 </div>
                 {extractedData.city && (
@@ -741,7 +741,7 @@ export function LogMeeting() {
               </div>
 
               {/* Products Discussed Card */}
-              <div className="pulse-card" style={{ padding: "1.25rem" }}>
+              <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <MedicineIcon style={{ fontSize: "1.15rem", color: "#2563eb" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Products Discussed</span>
@@ -760,7 +760,7 @@ export function LogMeeting() {
               </div>
 
               {/* Follow-up Date Card */}
-              <div className="pulse-card" style={{ padding: "1.25rem" }}>
+              <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <CalendarIcon style={{ fontSize: "1.15rem", color: "#d97706" }} />
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Follow-up Scheduled</span>
@@ -772,21 +772,20 @@ export function LogMeeting() {
             </div>
 
             {/* Meeting Summary Card */}
-            <div className="pulse-card" style={{ padding: "1.25rem" }}>
+            <div className="pulse-card p-4">
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                 <NotesIcon style={{ fontSize: "1.15rem", color: "#0284c7" }} />
                 <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Structured Meeting Summary</span>
               </div>
-              <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.6 }}>
+              <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.6, wordBreak: "break-word" }}>
                 {extractedData.meeting_summary || "No summary provided."}
               </p>
             </div>
 
             {/* Resolution Actions */}
             <div
-              className="pulse-card"
+              className="pulse-card p-4 sm:p-6"
               style={{
-                padding: "1.5rem",
                 backgroundColor: "#f8fafc",
                 display: "flex",
                 alignItems: "center",
@@ -814,6 +813,7 @@ export function LogMeeting() {
                       alignItems: "center",
                       gap: "0.4rem",
                       padding: "0.65rem 1rem",
+                      minHeight: "44px",
                       borderRadius: "8px",
                       backgroundColor: "#ffffff",
                       border: "1px solid #cbd5e1",
@@ -834,6 +834,7 @@ export function LogMeeting() {
                     alignItems: "center",
                     gap: "0.4rem",
                     padding: "0.65rem 1.25rem",
+                    minHeight: "44px",
                     borderRadius: "8px",
                     backgroundColor: "#0284c7",
                     color: "#ffffff",
