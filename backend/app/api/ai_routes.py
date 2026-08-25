@@ -62,30 +62,43 @@ async def transcribe_audio(
             body = await request.json()
             audio_b64 = body.get("audio_data") or body.get("audio_base64")
             if not audio_b64:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="audio_data is required in JSON payload")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No usable audio was recorded. Please try recording again.")
             audio_bytes = base64.b64decode(audio_b64)
             filename = body.get("filename", "recording.webm")
+            target_mime = "audio/webm"
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid audio payload: {e}")
     else:
         audio_bytes = await request.body()
         filename = "recording.webm"
-        if "audio/wav" in content_type or "audio/x-wav" in content_type:
+        target_mime = "audio/webm"
+
+        if "wav" in content_type:
             filename = "recording.wav"
-        elif "audio/mp4" in content_type or "audio/m4a" in content_type:
+            target_mime = "audio/wav"
+        elif "mp4" in content_type or "m4a" in content_type or "aac" in content_type:
             filename = "recording.m4a"
-        elif "audio/mpeg" in content_type or "audio/mp3" in content_type:
+            target_mime = "audio/mp4"
+        elif "mpeg" in content_type or "mp3" in content_type:
             filename = "recording.mp3"
-        elif "audio/ogg" in content_type:
+            target_mime = "audio/mpeg"
+        elif "ogg" in content_type:
             filename = "recording.ogg"
+            target_mime = "audio/ogg"
+        elif "webm" in content_type:
+            filename = "recording.webm"
+            target_mime = "audio/webm"
 
     if not audio_bytes or len(audio_bytes) < 100:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Audio file is empty or too short")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No usable audio was recorded. Please try recording again."
+        )
 
     try:
         groq_client = Groq(api_key=settings.GROQ_API_KEY)
         transcription = groq_client.audio.transcriptions.create(
-            file=(filename, audio_bytes),
+            file=(filename, audio_bytes, target_mime),
             model="whisper-large-v3",
             response_format="json"
         )

@@ -103,16 +103,42 @@ export function LogMeeting() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const audioTracks = stream ? stream.getAudioTracks() : [];
+      if (!audioTracks || audioTracks.length === 0) {
+        setVoiceError("No active audio track found on microphone.");
+        return;
+      }
+      const activeTrack = audioTracks[0];
+      if (!activeTrack || activeTrack.readyState !== "live" || !activeTrack.enabled) {
+        setVoiceError("Microphone stream is not active or disabled.");
+        return;
+      }
+
       audioChunksRef.current = [];
       lastAudioBlobRef.current = null;
 
-      let mimeType = "audio/webm";
-      if (!MediaRecorder.isTypeSupported("audio/webm") && MediaRecorder.isTypeSupported("audio/mp4")) {
-        mimeType = "audio/mp4";
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+        "audio/wav",
+      ];
+
+      let selectedMimeType = "";
+      for (const type of preferredMimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          selectedMimeType = type;
+          break;
+        }
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorderOptions = selectedMimeType ? { mimeType: selectedMimeType } : {};
+      const recorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = recorder;
+
+      const actualMimeType = recorder.mimeType || selectedMimeType || "audio/webm";
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -128,11 +154,17 @@ export function LogMeeting() {
           // ignore
         }
 
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         lastAudioBlobRef.current = audioBlob;
 
-        if (audioBlob.size < 100) {
-          setVoiceError("Audio recording was too short. Please speak clearly.");
+        console.log("Audio recording metadata:", {
+          mimeType: audioBlob.type,
+          size: audioBlob.size,
+          chunksCount: audioChunksRef.current.length,
+        });
+
+        if (audioChunksRef.current.length === 0 || audioBlob.size < 100) {
+          setVoiceError("No usable audio was recorded. Please try recording again.");
           return;
         }
 
@@ -147,7 +179,7 @@ export function LogMeeting() {
           }
         } catch (err) {
           console.error("Transcription error:", err);
-          const friendly = err?.response?.data?.detail || "Voice transcription failed. You can retry or type notes manually.";
+          const friendly = err?.response?.data?.detail || err?.userMessage || "No usable audio was recorded. Please try recording again.";
           setVoiceError(friendly);
         } finally {
           setIsTranscribing(false);
