@@ -324,12 +324,12 @@ export function LogMeeting() {
   };
 
   return (
-    <AppShell title="AI Meeting Logger">
-      <div className="content-container-workflow" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <AppShell title="AI Meeting Workspace">
+      <div className="content-container-workflow" style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
         <PageHeader
-          tag="AI Intelligence Workflow"
-          title="Log Meeting"
-          description="Capture field conversations with voice dictation or text notes. AI automatically extracts doctor commitments, products, and schedules follow-ups."
+          tag="AI MEETING INTELLIGENCE"
+          title="Log Meeting with AI"
+          description="Capture the conversation, then let PulseCRM turn it into structured HCP intelligence."
           actions={
             pipelineState !== "idle" && (
               <button
@@ -353,10 +353,10 @@ export function LogMeeting() {
         />
 
         {/* STEP 1: Meeting Input Canvas (Voice & Text) */}
-        <div className="pulse-card p-4 sm:p-6">
+        <div className="pulse-card p-5 sm:p-7">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "0.5rem" }}>
-            <label style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
-              Field Notes / Voice Transcript
+            <label style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#0f172a" }}>
+              Meeting notes
             </label>
 
             {/* Sample Prompts */}
@@ -584,7 +584,7 @@ export function LogMeeting() {
             >
               <AiIcon style={{ fontSize: "1.2rem" }} />
               <span>
-                {pipelineState === "processing" ? "Analyzing Intelligence..." : "Extract Meeting Intelligence"}
+                {pipelineState === "processing" ? "Analyzing meeting..." : "Analyze meeting"}
               </span>
             </button>
           </div>
@@ -684,8 +684,8 @@ export function LogMeeting() {
                   }}
                 >
                   {saveResult?.is_new_hcp
-                    ? "✨ New Healthcare Professional Detected & Automatically Registered"
-                    : "Interaction Successfully Processed & Linked to Existing HCP"}
+                    ? "✨ New HCP added to territory database"
+                    : "Interaction linked to existing HCP"}
                 </span>
               </div>
               <StatusBadge variant={saveResult?.is_new_hcp ? "scheduled" : "teal"} size="sm">
@@ -699,7 +699,7 @@ export function LogMeeting() {
               <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <DoctorIcon style={{ fontSize: "1.15rem", color: "#0284c7" }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Doctor Identified</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>HCP</span>
                 </div>
                 <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
                   {extractedData.doctor_name || "Unknown Doctor"}
@@ -724,7 +724,7 @@ export function LogMeeting() {
               <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <HospitalIcon style={{ fontSize: "1.15rem", color: "#0d9488" }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Hospital & Location</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Organization</span>
                 </div>
                 <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
                   {extractedData.hospital || "Not Specified"}
@@ -741,7 +741,7 @@ export function LogMeeting() {
               <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <MedicineIcon style={{ fontSize: "1.15rem", color: "#2563eb" }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Products Discussed</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Products</span>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginTop: "0.25rem" }}>
                   {extractedData.products_discussed ? (
@@ -760,7 +760,7 @@ export function LogMeeting() {
               <div className="pulse-card p-4">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <CalendarIcon style={{ fontSize: "1.15rem", color: "#d97706" }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Follow-up Scheduled</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase" }}>Next follow-up</span>
                 </div>
                 <div style={{ fontSize: "0.95rem", fontWeight: 600, color: extractedData.follow_up_date ? "#92400e" : "#64748b" }}>
                   {formatDate(extractedData.follow_up_date)}

@@ -221,19 +221,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* Layout Content Containers */
 .content-container-crm {
-  max-width: 1200px;
+  max-width: 1120px;
   width: 100%;
   margin: 0 auto;
 }
 
 .content-container-workflow {
-  max-width: 780px;
+  max-width: 920px;
   width: 100%;
   margin: 0 auto;
 }
 
 .content-container-auth {
-  max-width: 400px;
+  max-width: 420px;
   width: 100%;
   margin: 0 auto;
 }

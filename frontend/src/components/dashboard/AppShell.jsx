@@ -61,10 +61,10 @@ export function AppShell({ title = "Dashboard", children }) {
         <Topbar title={title} onMenuClick={() => setMobileOpen(true)} />
 
         <main
-          className="p-3 sm:p-5 md:p-6"
+          className="px-4 sm:px-6 md:px-10 py-6 sm:py-8"
           style={{
             flex: 1,
-            maxWidth: "1200px",
+            maxWidth: "1120px",
             width: "100%",
             margin: "0 auto",
             boxSizing: "border-box",

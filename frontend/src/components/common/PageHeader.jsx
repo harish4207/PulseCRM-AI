@@ -18,12 +18,12 @@ export function PageHeader({
         flexWrap: "wrap",
       }}
     >
-      <div style={{ maxWidth: "700px" }}>
+      <div style={{ maxWidth: "720px" }}>
         {tag && (
           <div
             style={{
-              fontSize: "0.6875rem",
-              fontWeight: 700,
+              fontSize: "0.75rem",
+              fontWeight: 600,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               color: "#0284c7",
@@ -34,12 +34,10 @@ export function PageHeader({
           </div>
         )}
         <h1
+          className="text-2xl sm:text-3xl font-bold text-slate-900"
           style={{
-            fontSize: "1.6rem",
-            fontWeight: 700,
-            color: "#0f172a",
             letterSpacing: "-0.025em",
-            lineHeight: 1.25,
+            lineHeight: 1.2,
             margin: 0,
           }}
         >
@@ -48,11 +46,10 @@ export function PageHeader({
         {description && (
           <p
             style={{
-              fontSize: "0.875rem",
+              fontSize: "0.9375rem",
               color: "#64748b",
-              marginTop: "0.35rem",
               lineHeight: 1.5,
-              margin: "0.35rem 0 0",
+              margin: "0.4rem 0 0",
             }}
           >
             {description}
