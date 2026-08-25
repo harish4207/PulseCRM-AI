@@ -60,12 +60,12 @@ export function Analytics() {
   const specialtyEntries = Object.entries(specialtyCounts);
 
   return (
-    <AppShell title="Relationship Analytics">
+    <AppShell title="Analytics">
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <PageHeader
-          tag="Intelligence Insights"
-          title="Territory Relationship Analytics"
-          description="High-level visibility into doctor relationship coverage, meeting volume, and follow-up commitments."
+          tag="Territory Intelligence"
+          title="Territory Analytics"
+          description="Visibility into doctor coverage, field meeting volume, and follow-up commitments."
         />
 
         {loading ? (

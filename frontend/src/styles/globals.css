@@ -192,6 +192,52 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-color: #94a3b8;
 }
 
+.btn-tertiary {
+  background-color: transparent;
+  color: #475569;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-tertiary:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-danger {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* Layout Content Containers */
+.content-container-crm {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.content-container-workflow {
+  max-width: 780px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.content-container-auth {
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

@@ -324,28 +324,25 @@ export function LogMeeting() {
   };
 
   return (
-    <AppShell title="AI Meeting Intelligence">
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: "1000px", margin: "0 auto" }}>
+    <AppShell title="AI Meeting Logger">
+      <div className="content-container-workflow" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <PageHeader
-          tag="Agentic CRM Pipeline"
-          title="Log Meeting with AI"
-          description="Dictate voice notes or type field transcripts to automatically extract HCP commitments, register new doctors, and schedule follow-ups."
+          tag="AI Intelligence Workflow"
+          title="Log Meeting"
+          description="Capture field conversations with voice dictation or text notes. AI automatically extracts doctor commitments, products, and schedules follow-ups."
           actions={
             pipelineState !== "idle" && (
               <button
                 type="button"
                 onClick={handleReset}
+                className="btn-secondary"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "0.4rem",
                   padding: "0.55rem 0.9rem",
-                  borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "#ffffff",
+                  minHeight: "38px",
                   fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  color: "#475569",
                 }}
               >
                 <RefreshIcon style={{ fontSize: "1rem" }} />

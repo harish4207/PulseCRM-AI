@@ -72,27 +72,24 @@ export function Interactions() {
   });
 
   return (
-    <AppShell title="Interactions History">
+    <AppShell title="Interactions">
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <PageHeader
-          tag="Field Intelligence Log"
+          tag="CRM Activity History"
           title="Interaction History"
-          description="Detailed timeline of all healthcare professional meetings, product presentations, and commitments."
+          description="Timeline of healthcare professional meetings, product detailing, and follow-up commitments."
           actions={
             <Link
               to="/ai-meeting"
+              className="btn-primary"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.4rem",
-                padding: "0.65rem 1.15rem",
-                borderRadius: "8px",
-                backgroundColor: "#0284c7",
-                color: "#ffffff",
-                fontSize: "0.875rem",
-                fontWeight: 600,
+                padding: "0.6rem 1.1rem",
+                minHeight: "42px",
+                fontSize: "0.8125rem",
                 textDecoration: "none",
-                boxShadow: "0 2px 6px rgba(2, 132, 199, 0.2)",
               }}
             >
               <AiIcon style={{ fontSize: "1.1rem" }} />

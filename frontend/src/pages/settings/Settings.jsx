@@ -29,8 +29,8 @@ export function Settings() {
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: "900px" }}>
         <PageHeader
           tag="Preferences"
-          title="Account & Territory Settings"
-          description="Manage your representative profile, notifications, and clinical territory configuration."
+          title="Settings"
+          description="Manage your representative profile, security credentials, and territory preferences."
         />
 
         {/* Profile Card */}
@@ -161,17 +161,14 @@ export function Settings() {
           <button
             type="button"
             onClick={handleLogout}
+            className="btn-danger"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: "0.4rem",
               padding: "0.6rem 1.2rem",
-              borderRadius: "8px",
-              border: "1px solid #fecaca",
-              backgroundColor: "#fef2f2",
-              color: "#dc2626",
+              minHeight: "40px",
               fontSize: "0.8125rem",
-              fontWeight: 600,
             }}
           >
             <LogoutIcon style={{ fontSize: "1rem" }} />

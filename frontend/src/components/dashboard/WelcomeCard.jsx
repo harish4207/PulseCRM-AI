@@ -1,5 +1,7 @@
 import React from "react";
 import { useSelector } from "react-redux";
+import { Link } from "react-router-dom";
+import { AutoAwesomeOutlined as AiIcon } from "@mui/icons-material";
 
 export function WelcomeCard({ name }) {
   const { user } = useSelector((state) => state.auth ?? {});
@@ -97,29 +99,55 @@ export function WelcomeCard({ name }) {
         </p>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.55rem",
-          backgroundColor: "rgba(255, 255, 255, 0.08)",
-          padding: "0.45rem 0.85rem",
-          borderRadius: "9999px",
-          border: "1px solid rgba(255, 255, 255, 0.12)",
-        }}
-      >
-        <span
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+        <div
           style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            backgroundColor: "#10b981",
-            boxShadow: "0 0 0 3px rgba(16, 185, 129, 0.2)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.55rem",
+            backgroundColor: "rgba(255, 255, 255, 0.08)",
+            padding: "0.45rem 0.85rem",
+            borderRadius: "9999px",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
           }}
-        />
-        <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#f1f5f9" }}>
-          AI Relationship Copilot Active
-        </span>
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: "#10b981",
+              boxShadow: "0 0 0 3px rgba(16, 185, 129, 0.2)",
+            }}
+          />
+          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#f1f5f9" }}>
+            AI Relationship Copilot Active
+          </span>
+        </div>
+
+        <Link
+          to="/ai-meeting"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.45rem",
+            backgroundColor: "#0284c7",
+            color: "#ffffff",
+            padding: "0.6rem 1.1rem",
+            minHeight: "40px",
+            borderRadius: "10px",
+            fontSize: "0.8125rem",
+            fontWeight: 600,
+            textDecoration: "none",
+            boxShadow: "0 2px 8px rgba(2, 132, 199, 0.35)",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#0369a1")}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#0284c7")}
+        >
+          <AiIcon style={{ fontSize: "1.1rem" }} />
+          <span>Log Meeting with AI</span>
+        </Link>
       </div>
     </div>
   );

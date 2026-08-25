@@ -125,31 +125,28 @@ export function Doctors() {
   });
 
   return (
-    <AppShell title="Healthcare Professionals">
+    <AppShell title="HCP Directory">
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <PageHeader
-          tag="Territory Directory"
-          title="Healthcare Professionals (HCPs)"
-          description="Manage doctors, hospitals, and clinical specialists across your assigned sales territory."
+          tag="Territory Management"
+          title="HCP Directory"
+          description="Manage healthcare professionals, hospital affiliations, and interaction history across your assigned territory."
           actions={
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
+              className="btn-primary"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.4rem",
-                padding: "0.65rem 1.15rem",
-                borderRadius: "8px",
-                backgroundColor: "#0284c7",
-                color: "#ffffff",
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                boxShadow: "0 2px 6px rgba(2, 132, 199, 0.2)",
+                padding: "0.6rem 1.1rem",
+                minHeight: "42px",
+                fontSize: "0.8125rem",
               }}
             >
               <AddIcon style={{ fontSize: "1.1rem" }} />
-              <span>Add Healthcare Professional</span>
+              <span>Add HCP</span>
             </button>
           }
         />
