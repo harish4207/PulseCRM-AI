@@ -7,7 +7,7 @@ class InteractionCreate(BaseModel):
     hcp_id: int
     meeting_notes: str
     products_discussed: str
-    follow_up_date: datetime
+    follow_up_date: datetime | None
 
 
 class InteractionResponse(InteractionCreate):

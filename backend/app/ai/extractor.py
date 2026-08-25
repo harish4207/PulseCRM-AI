@@ -8,27 +8,25 @@ def extract_meeting_details(text: str):
     prompt = f"""
 You are an AI assistant for a Medical CRM.
 
-Extract the following information.
+Extract the following information from the meeting notes or transcript.
 
 Return ONLY valid JSON.
 
 Fields:
-
-doctor_name
-hospital
-products_discussed
-follow_up_date
-meeting_summary
+doctor_name: Full name of the doctor (e.g., "Dr. Rajesh Sharma" or "Dr Rajesh")
+hospital: Hospital or clinic name (if mentioned, otherwise null)
+specialization: Medical specialization (e.g., Cardiology, Oncology, if mentioned, otherwise null)
+city: City or location (if mentioned, otherwise null)
+products_discussed: Medications or products discussed (e.g., "CardioPress-50")
+follow_up_date: Follow-up date in ISO 8601 datetime format (e.g., "2026-09-01T10:00:00"). If no specific date/time can be determined, return null. Never use relative words like "Tomorrow" or "Next Monday".
+meeting_summary: Summary of the conversation and key medical discussion points.
 
 IMPORTANT:
 - Return ONLY valid JSON.
-- follow_up_date MUST be in ISO 8601 datetime format.
-- Example: 2026-07-22T10:00:00
-- Never return values like "Tomorrow", "Tuesday", "Next Week", etc.
-- If the exact date cannot be determined from the conversation, return null.
+- Never fabricate doctor details, phone numbers, or emails.
+- If exact information is not in the text, use null.
 
 Conversation:
-
 {text}
 """
 
