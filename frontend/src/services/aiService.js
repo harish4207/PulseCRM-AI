@@ -21,6 +21,37 @@ export const aiService = {
     });
     return response.data;
   },
+
+  async copilotChat({
+    message,
+    conversationId = null,
+    inputMode = "text",
+    history = [],
+    selectedHcpId = null,
+    selectedHcpName = null,
+    pendingConfirmation = false,
+    pendingAction = null,
+  }) {
+    const response = await api.post("/ai/copilot/chat", {
+      message,
+      conversation_id: conversationId,
+      input_mode: inputMode,
+      history,
+      selected_hcp_id: selectedHcpId,
+      selected_hcp_name: selectedHcpName,
+      pending_confirmation: pendingConfirmation,
+      pending_action: pendingAction,
+    });
+    return response.data;
+  },
+
+  async voiceChat(params) {
+    return this.copilotChat({
+      ...params,
+      message: params.transcript || params.message,
+      inputMode: "voice",
+    });
+  },
 };
 
 export default aiService;

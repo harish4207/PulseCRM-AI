@@ -10,6 +10,7 @@ import {
   SettingsOutlined as SettingsIcon,
   LogoutOutlined as LogoutIcon,
   Close as CloseIcon,
+  RecordVoiceOver as CopilotIcon,
 } from "@mui/icons-material";
 
 import AppLogo from "../common/AppLogo";
@@ -20,6 +21,7 @@ const navItems = [
   { label: "HCPs", path: "/hcps", icon: HcpIcon },
   { label: "Interactions", path: "/interactions", icon: InteractionIcon },
   { label: "AI Meeting", path: "/ai-meeting", icon: AiIcon, highlight: true },
+  { label: "Voice Copilot", path: "/voice-copilot", icon: CopilotIcon, badge: "NEW" },
   { label: "Analytics", path: "/analytics", icon: AnalyticsIcon },
   { label: "Settings", path: "/settings", icon: SettingsIcon },
 ];
@@ -141,6 +143,23 @@ export function Sidebar({ onClose = null, isMobile = false }) {
                         }}
                       >
                         AI
+                      </span>
+                    )}
+
+                    {item.badge && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          backgroundColor: "#059669",
+                          color: "#ffffff",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "9999px",
+                        }}
+                      >
+                        {item.badge}
                       </span>
                     )}
                   </>

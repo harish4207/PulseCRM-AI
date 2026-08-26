@@ -10,6 +10,7 @@ import Interactions from "../pages/interactions/Interactions";
 import LogMeeting from "../pages/meetings/LogMeeting";
 import Analytics from "../pages/analytics/Analytics";
 import Settings from "../pages/settings/Settings";
+import VoiceCopilot from "../pages/copilot/VoiceCopilot";
 import ProtectedRoute from "./ProtectedRoute";
 
 function PublicRoute() {
@@ -57,6 +58,7 @@ export function AppRoutes() {
           <Route path="/hcps" element={<Doctors />} />
           <Route path="/interactions" element={<Interactions />} />
           <Route path="/ai-meeting" element={<LogMeeting />} />
+          <Route path="/voice-copilot" element={<VoiceCopilot />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

@@ -2,7 +2,7 @@ import base64
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from groq import Groq
 
 from app.database.dependencies import get_db
@@ -112,3 +112,106 @@ async def transcribe_audio(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Transcription error: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Unified Ask PulseCRM Copilot Endpoint (Text + Voice)
+# ---------------------------------------------------------------------------
+
+class CopilotChatRequest(BaseModel):
+    message: Optional[str] = None
+    transcript: Optional[str] = None  # Compatibility alias
+    conversation_id: Optional[str] = None
+    input_mode: str = "text"  # "text" or "voice"
+    history: List[Dict[str, str]] = []
+    selected_hcp_id: Optional[int] = None
+    selected_hcp_name: Optional[str] = None
+    pending_confirmation: bool = False
+    pending_action: Optional[Dict[str, Any]] = None
+
+
+def _process_copilot_query(
+    req: CopilotChatRequest,
+    db: Session,
+    current_user: User,
+) -> Dict[str, Any]:
+    text = (req.message or req.transcript or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="message/transcript is required and cannot be empty",
+        )
+
+    from app.ai.voice_copilot_graph import run_voice_copilot_graph
+
+    try:
+        result = run_voice_copilot_graph(
+            db=db,
+            transcript=text,
+            user_id=current_user.id,
+            history=req.history or [],
+            current_hcp_id=req.selected_hcp_id,
+            current_hcp_name=req.selected_hcp_name,
+            pending_confirmation=req.pending_confirmation,
+            pending_action=req.pending_action,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Copilot error: {str(e)}",
+        )
+
+    if not result.get("success"):
+        return {
+            "success": False,
+            "response": result.get("response", "Something went wrong. Please try again."),
+            "language": result.get("language", "en"),
+            "intent": result.get("intent", "UNKNOWN"),
+            "hcp_id": None,
+            "hcp_name": None,
+            "pending_confirmation": False,
+            "pending_action": None,
+            "card_data": None,
+            "conversation_id": req.conversation_id,
+            "input_mode": req.input_mode,
+        }
+
+    return {
+        "success": True,
+        "response": result.get("response", ""),
+        "language": result.get("language", "en"),
+        "intent": result.get("intent", "UNKNOWN"),
+        "hcp_id": result.get("hcp_id"),
+        "hcp_name": result.get("hcp_name"),
+        "pending_confirmation": result.get("pending_confirmation", False),
+        "pending_action": result.get("pending_action"),
+        "card_data": result.get("card_data"),
+        "confidence": result.get("confidence", 1.0),
+        "conversation_id": req.conversation_id,
+        "input_mode": req.input_mode,
+    }
+
+
+@router.post("/copilot/chat")
+def copilot_chat(
+    req: CopilotChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Unified Multimodal Copilot endpoint for text typing and voice speech.
+    Uses identical LangGraph pipeline, CRM tools, context memory, and confirmation system.
+    """
+    return _process_copilot_query(req, db, current_user)
+
+
+@router.post("/voice/chat")
+def voice_chat_alias(
+    req: CopilotChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Backwards-compatible Voice Copilot endpoint alias.
+    """
+    return _process_copilot_query(req, db, current_user)

@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import { useCopilot } from "../../context/CopilotContext";
+import { AutoAwesome as SparkleIcon } from "@mui/icons-material";
 
 export function AppShell({ title = "Dashboard", children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { selectedHcpName, chatHistory } = useCopilot();
 
   useEffect(() => {
     if (mobileOpen) {
@@ -73,6 +79,40 @@ export function AppShell({ title = "Dashboard", children }) {
           {children}
         </main>
       </div>
+
+      {/* Floating Global Copilot Dock (when away from /voice-copilot) */}
+      {location.pathname !== "/voice-copilot" && chatHistory.length > 0 && (
+        <button
+          type="button"
+          onClick={() => navigate("/voice-copilot")}
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.45rem",
+            padding: "0.55rem 0.95rem",
+            backgroundColor: "#0284c7",
+            color: "#ffffff",
+            borderRadius: "9999px",
+            boxShadow: "0 10px 15px -3px rgba(2, 132, 199, 0.35), 0 4px 6px -4px rgba(2, 132, 199, 0.2)",
+            border: "none",
+            cursor: "pointer",
+            zIndex: 40,
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            transition: "all 0.2s ease",
+            minHeight: "44px",
+          }}
+          aria-label="Return to Ask PulseCRM Copilot"
+        >
+          <SparkleIcon style={{ fontSize: "1rem" }} />
+          <span>
+            {selectedHcpName ? `Copilot · ${selectedHcpName}` : `Ask PulseCRM (${chatHistory.length})`}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

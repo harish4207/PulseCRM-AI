@@ -35,6 +35,18 @@ app.include_router(router)
 app.include_router(ai_router)
 
 
+@app.on_event("startup")
+async def startup_event():
+    from app.services.reminder_scheduler import start_reminder_scheduler
+    start_reminder_scheduler()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    from app.services.reminder_scheduler import stop_reminder_scheduler
+    stop_reminder_scheduler()
+
+
 @app.get("/")
 def home():
     return {"message": "PulseCRM AI Backend Running"}

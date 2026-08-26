@@ -4,6 +4,7 @@ import { useDispatch } from "react-redux";
 import authService from "./services/authService";
 import AppRoutes from "./routes/AppRoutes";
 import { logout, restoreSession, setError, setLoading } from "./store/slices/authSlice";
+import { CopilotProvider } from "./context/CopilotContext";
 
 function App() {
   const dispatch = useDispatch();
@@ -45,7 +46,11 @@ function App() {
     };
   }, [dispatch]);
 
-  return <AppRoutes />;
+  return (
+    <CopilotProvider>
+      <AppRoutes />
+    </CopilotProvider>
+  );
 }
 
 export default App;

@@ -1,14 +1,20 @@
 import React from "react";
 import { useSelector } from "react-redux";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Menu as MenuIcon,
   Search as SearchIcon,
   NotificationsNoneOutlined as NotificationIcon,
+  AutoAwesome as SparkleIcon,
 } from "@mui/icons-material";
+import { useCopilot } from "../../context/CopilotContext";
 
 export function Topbar({ title = "Dashboard", onMenuClick }) {
   const { user } = useSelector((state) => state.auth ?? {});
   const userInitial = (user?.full_name || "U").charAt(0).toUpperCase();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { selectedHcpName, chatHistory, pendingConfirmation } = useCopilot();
 
   return (
     <header
@@ -117,6 +123,44 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
             }}
           />
         </div>
+
+        {/* Global Copilot Access Pill */}
+        {location.pathname !== "/voice-copilot" && (
+          <button
+            type="button"
+            onClick={() => navigate("/voice-copilot")}
+            title="Open Ask PulseCRM AI Assistant"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.35rem 0.7rem",
+              borderRadius: "20px",
+              border: "1px solid #bae6fd",
+              backgroundColor: "#f0f9ff",
+              color: "#0369a1",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              maxWidth: "220px",
+              minHeight: "36px",
+              flexShrink: 0,
+            }}
+            aria-label="Navigate to Ask PulseCRM"
+          >
+            <SparkleIcon style={{ fontSize: "0.95rem", color: "#0284c7", flexShrink: 0 }} />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {selectedHcpName
+                ? `Context: ${selectedHcpName}`
+                : pendingConfirmation
+                ? `Pending Action`
+                : chatHistory.length > 0
+                ? `Copilot (${chatHistory.length})`
+                : `Ask PulseCRM`}
+            </span>
+          </button>
+        )}
 
         {/* Notifications */}
         <button
