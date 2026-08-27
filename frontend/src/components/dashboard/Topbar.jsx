@@ -91,15 +91,15 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
       </div>
 
       {/* Right actions: Search, Notifications, Avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-        {/* Search bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+        {/* Search bar (Desktop only - never crowd mobile header) */}
         <div
           style={{
             position: "relative",
             display: "flex",
             alignItems: "center",
           }}
-          className="hidden sm:flex"
+          className="hidden md:flex"
         >
           <SearchIcon
             style={{
@@ -119,12 +119,12 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
               backgroundColor: "#f8fafc",
               fontSize: "0.8125rem",
               color: "#0f172a",
-              width: "210px",
+              width: "190px",
             }}
           />
         </div>
 
-        {/* Global Copilot Access Pill */}
+        {/* Global Copilot Access Pill - Responsive compact on mobile */}
         {location.pathname !== "/voice-copilot" && (
           <button
             type="button"
@@ -133,8 +133,8 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.35rem 0.7rem",
+              gap: "0.3rem",
+              padding: "0.35rem 0.6rem",
               borderRadius: "20px",
               border: "1px solid #bae6fd",
               backgroundColor: "#f0f9ff",
@@ -143,14 +143,13 @@ export function Topbar({ title = "Dashboard", onMenuClick }) {
               fontWeight: 600,
               cursor: "pointer",
               transition: "all 0.15s ease",
-              maxWidth: "220px",
               minHeight: "36px",
               flexShrink: 0,
             }}
             aria-label="Navigate to Ask PulseCRM"
           >
             <SparkleIcon style={{ fontSize: "0.95rem", color: "#0284c7", flexShrink: 0 }} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="hidden sm:inline" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "160px" }}>
               {selectedHcpName
                 ? `Context: ${selectedHcpName}`
                 : pendingConfirmation

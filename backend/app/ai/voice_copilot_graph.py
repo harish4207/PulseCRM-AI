@@ -1275,6 +1275,14 @@ def generate_response(state: VoiceCopilotState) -> dict:
         und = state.understanding
         if und and und.conversational_reply:
             return {"response": und.conversational_reply}
+        if state.intent == INTENT_CONFIRM_ACTION:
+            return {"response": "అన్నీ ఇప్పటికే సేవ్ చేయబడ్డాయి. తదుపరి ఏమి చేయాలనుకుంటున్నారు?" if is_te else "All items have already been confirmed and saved to your CRM. What would you like to do next?"}
+        if state.intent == INTENT_CANCEL_ACTION:
+            return {"response": "రద్దు చేయడానికి ప్రస్తుతం ఏ చర్య లేదు." if is_te else "There are no active proposals to cancel."}
+        if state.intent == INTENT_CORRECT_PENDING_ACTION:
+            if state.current_hcp_name:
+                return {"response": f"I didn't find an active proposal to edit. Would you like me to schedule a meeting or log a visit with {state.current_hcp_name}?"}
+            return {"response": "I didn't find an active proposal to update. What would you like to schedule or log?"}
         if state.intent == INTENT_GET_CRM_BRIEF:
             return {"response": "Here is your daily CRM briefing. You're clear today with no pending tasks."}
         if state.intent == INTENT_GET_NEXT_ACTION:

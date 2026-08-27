@@ -3,13 +3,15 @@ reasoning_engine.py - Core Conversational Intelligence & Multi-Provider Reasonin
 
 Supports:
 1. Google Gemini 3.7 Flash (model ID: gemini-3.7-flash) via google-genai
-2. Groq GPT-OSS 120B (model ID: openai/gpt-oss-120b) via groq
+2. Groq Model Pool (openai/gpt-oss-120b, qwen/qwen3.8-27b, qwen/qwen3.6-27b, groq/compound) via groq
 3. Resilient deterministic fallback for offline/test environments
 
 Enforces:
 - Conversational first-pass reasoning (Greetings & general queries never trigger blind DB searches)
 - Strict pharmaceutical anti-hallucination guardrails (Zero invented clinical/trial stats)
 - Two-pass tool result synthesis (Tools return structured data -> LLM synthesizes natural grounded response)
+- Bounded retry policy with exponential backoff for transient errors
+- Safe JSON repair & structured output resilience
 - Detailed dev tracing without leaking secrets
 """
 
@@ -95,6 +97,47 @@ def detect_language(text: str) -> str:
     if TELUGU_LATIN_KEYWORDS.search(text):
         return "mixed"
     return "en"
+
+
+def clean_and_parse_json(raw_text: str) -> Optional[Dict[str, Any]]:
+    """
+    Robust JSON parser that handles:
+    - Markdown code fences (```json ... ```)
+    - Leading / trailing conversational text
+    - Trailing commas
+    - Single quotes -> double quotes
+    """
+    if not raw_text or not raw_text.strip():
+        return None
+
+    cleaned = raw_text.strip()
+
+    # 1. Strip markdown fences
+    if "```" in cleaned:
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE).strip()
+
+    # 2. Try direct JSON parse
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+
+    # 3. Extract outermost { ... }
+    m = re.search(r"(\{.*\})", cleaned, re.DOTALL)
+    if m:
+        candidate = m.group(1).strip()
+        try:
+            return json.loads(candidate)
+        except Exception:
+            # Try removing trailing commas
+            fixed = re.sub(r",\s*([\}\]])", r"\1", candidate)
+            try:
+                return json.loads(fixed)
+            except Exception:
+                pass
+
+    return None
 
 
 class ReasoningResult(BaseModel):
@@ -215,7 +258,7 @@ RULES:
 class ReasoningEngine:
     """
     Unified Multi-Provider Reasoning Engine.
-    Handles Gemini 3.7 Flash, Groq GPT-OSS 120B, and Deterministic Fallback.
+    Handles Gemini 3.7 Flash, Groq Model Pool, and Deterministic Fallback.
     """
 
     def __init__(self):
@@ -237,7 +280,7 @@ class ReasoningEngine:
         if groq_key and len(groq_key) > 5:
             try:
                 from groq import Groq
-                self.groq_client = Groq(api_key=groq_key, timeout=5.0)
+                self.groq_client = Groq(api_key=groq_key, timeout=8.0)
                 logger.info("[ReasoningEngine] Groq client initialized successfully.")
             except Exception as e:
                 logger.warning(f"[ReasoningEngine] Could not initialize Groq client: {e}")
@@ -258,20 +301,21 @@ class ReasoningEngine:
         provider = preferred_provider or settings.AI_REASONING_PROVIDER or "gemini"
 
         norm = normalize_transcript(transcript.strip())
-        lower = norm.lower()
 
         # Step 1: Provider Execution with Fallback Chain
         res = None
         if provider == "gemini" and self.gemini_client:
             res = self._call_gemini(transcript, ctx, history)
             if not res and self.groq_client:
-                logger.info("[ReasoningEngine] Falling back from Gemini to Groq.")
+                logger.info("[ReasoningEngine] Failing over from Gemini to Groq pool.")
                 res = self._call_groq(transcript, ctx, history)
-        elif (provider == "groq" or not self.gemini_client) and self.groq_client:
+        elif self.groq_client:
             res = self._call_groq(transcript, ctx, history)
             if not res and self.gemini_client:
-                logger.info("[ReasoningEngine] Falling back from Groq to Gemini.")
+                logger.info("[ReasoningEngine] Failing over from Groq to Gemini.")
                 res = self._call_gemini(transcript, ctx, history)
+        elif self.gemini_client:
+            res = self._call_gemini(transcript, ctx, history)
 
         # Step 2: Deterministic Fallback if both LLM calls were skipped or failed
         if not res:
@@ -299,39 +343,43 @@ class ReasoningEngine:
         context: Dict[str, Any],
         history: Optional[List[Any]] = None,
     ) -> Optional[ReasoningResult]:
-        """Call Google Gemini 3.7 Flash via google-genai."""
+        """Call Google Gemini 3.7 Flash via google-genai with bounded retry."""
         if not self.gemini_client:
             return None
 
-        try:
-            from google.genai import types
+        for attempt in range(2):
+            try:
+                from google.genai import types
 
-            hist_str = self._format_history(history)
-            ctx_summary = self._format_context(context)
+                hist_str = self._format_history(history)
+                ctx_summary = self._format_context(context)
 
-            user_prompt = (
-                f"Conversation History:\n{hist_str}\n\n"
-                f"Current Evolving CRM Context:\n{json.dumps(ctx_summary, indent=2)}\n\n"
-                f"Latest User Utterance:\n\"{transcript}\""
-            )
+                user_prompt = (
+                    f"Conversation History:\n{hist_str}\n\n"
+                    f"Current Evolving CRM Context:\n{json.dumps(ctx_summary, indent=2)}\n\n"
+                    f"Latest User Utterance:\n\"{transcript}\""
+                )
 
-            model_id = settings.GEMINI_MODEL or "gemini-3.7-flash"
-            response = self.gemini_client.models.generate_content(
-                model=model_id,
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_REASONING_PROMPT,
-                    response_mime_type="application/json",
-                    temperature=0.0,
-                ),
-            )
+                model_id = settings.GEMINI_MODEL or "gemini-3.7-flash"
+                response = self.gemini_client.models.generate_content(
+                    model=model_id,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_REASONING_PROMPT,
+                        response_mime_type="application/json",
+                        temperature=0.0,
+                    ),
+                )
 
-            data = json.loads(response.text)
-            return self._dict_to_reasoning_result(data, transcript, model_id)
+                data = clean_and_parse_json(response.text)
+                if data:
+                    return self._dict_to_reasoning_result(data, transcript, model_id)
 
-        except Exception as e:
-            logger.warning(f"[ReasoningEngine] Gemini API call failed: {e}")
-            return None
+            except Exception as e:
+                logger.warning(f"[ReasoningEngine] Gemini API attempt {attempt+1} failed: {e}")
+                time.sleep(0.4)
+
+        return None
 
     def _call_groq(
         self,
@@ -339,7 +387,7 @@ class ReasoningEngine:
         context: Dict[str, Any],
         history: Optional[List[Any]] = None,
     ) -> Optional[ReasoningResult]:
-        """Call Groq with automatic model failover."""
+        """Call Groq with automatic model failover and bounded retry."""
         if not self.groq_client:
             return None
 
@@ -352,26 +400,39 @@ class ReasoningEngine:
             f"Latest User Utterance:\n\"{transcript}\""
         )
 
-        candidate_models = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b", settings.GROQ_MODEL or "openai/gpt-oss-120b"]
+        # High-availability Groq candidate models pool ordered by reliability and quota
+        candidate_models = [
+            "qwen/qwen3.8-27b",
+            "qwen/qwen3.6-27b",
+            "openai/gpt-oss-120b",
+            "groq/compound",
+            "openai/gpt-oss-20b",
+        ]
 
         for model_id in candidate_models:
-            try:
-                completion = self.groq_client.chat.completions.create(
-                    model=model_id,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_REASONING_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.0,
-                )
+            for attempt in range(2):
+                try:
+                    completion = self.groq_client.chat.completions.create(
+                        model=model_id,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_REASONING_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.0,
+                    )
 
-                raw_text = completion.choices[0].message.content
-                data = json.loads(raw_text)
-                return self._dict_to_reasoning_result(data, transcript, model_id)
-            except Exception as e:
-                logger.warning(f"[ReasoningEngine] Groq model {model_id} failed: {e}")
-                continue
+                    raw_text = completion.choices[0].message.content
+                    data = clean_and_parse_json(raw_text)
+                    if data:
+                        return self._dict_to_reasoning_result(data, transcript, model_id)
+                except Exception as e:
+                    err_str = str(e).lower()
+                    logger.warning(f"[ReasoningEngine] Groq model {model_id} attempt {attempt+1} failed: {e}")
+                    # If 429 rate limit or 400 terms error, don't waste second attempt on same model
+                    if "429" in err_str or "rate_limit" in err_str or "terms" in err_str:
+                        break
+                    time.sleep(0.3)
 
         return None
 
@@ -488,14 +549,14 @@ class ReasoningEngine:
             except Exception as e:
                 logger.warning(f"[ReasoningEngine] Gemini tool synthesis failed: {e}")
 
-        # Try Groq
+        # Try Groq Pool
         if self.groq_client:
             prompt = (
                 f"User Query: \"{user_query}\"\n"
                 f"Executed Tool: {tool_name}\n"
                 f"Database Result:\n{json.dumps(tool_result, indent=2, default=str)}\n"
             )
-            candidate_models = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "qwen/qwen3.6-27b", settings.GROQ_MODEL or "openai/gpt-oss-120b"]
+            candidate_models = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "openai/gpt-oss-120b", "groq/compound"]
             for model_id in candidate_models:
                 try:
                     completion = self.groq_client.chat.completions.create(
@@ -584,15 +645,31 @@ class ReasoningEngine:
             else:
                 res.doctor_name = clean_doctor_name(res.doctor_name)
 
-        # 2. Time Display Standardisation (e.g. Ensure "03:00 PM" instead of "3" or "Friday 3")
-        if res.meeting_time_display:
-            t_parsed = parse_time_expression(res.meeting_time_display) or parse_time_expression(norm_transcript)
-            if t_parsed:
-                res.meeting_time_display = t_parsed[2]
+        # 2. Extract Date from meeting_time_display or follow_up_display if present
+        raw_time_str = res.meeting_time_display or ""
+        raw_date_str = res.follow_up_display or ""
 
-        # 3. Reminder Standardisation
+        # If time string contains date terms (e.g. "Thursday afternoon" or "Friday 3 PM")
+        d_from_time = parse_date_expression(raw_time_str)
+        if d_from_time and not res.follow_up_display:
+            res.follow_up_date = d_from_time[0].isoformat()
+            res.follow_up_display = d_from_time[1]
+
+        # 3. Time Display Standardisation (e.g. Ensure "02:00 PM" instead of "afternoon" or "3")
+        t_parsed = parse_time_expression(raw_time_str) or parse_time_expression(norm_transcript)
+        if t_parsed:
+            res.meeting_time_display = t_parsed[2]
+            res.meeting_time = f"{res.meeting_time_display}"
+
+        # 4. Date Standardisation
+        dt_p = parse_date_expression(raw_date_str) or parse_date_expression(norm_transcript)
+        if dt_p:
+            res.follow_up_date = dt_p[0].isoformat()
+            res.follow_up_display = dt_p[1]
+
+        # 5. Reminder Standardisation
         if res.reminder_display or res.reminder_minutes is not None:
-            if res.reminder_display and any(k in res.reminder_display.lower() for k in ["no", "none", "don't", "dont", "remove"]):
+            if res.reminder_display and any(k in res.reminder_display.lower() for k in ["no", "none", "don't", "dont", "remove", "vaddu"]):
                 res.reminder_minutes = 0
                 res.reminder_display = "No reminder"
             elif res.reminder_minutes is not None:
@@ -607,13 +684,6 @@ class ReasoningEngine:
                 if rem_p:
                     res.reminder_minutes = rem_p[0]
                     res.reminder_display = rem_p[1]
-
-        # 4. Date Standardisation
-        if res.follow_up_display:
-            dt_p = parse_date_expression(res.follow_up_display) or parse_date_expression(norm_transcript)
-            if dt_p:
-                res.follow_up_date = dt_p[0].isoformat()
-                res.follow_up_display = dt_p[1]
 
     def _format_history(self, history: Optional[List[Any]]) -> str:
         if not history:

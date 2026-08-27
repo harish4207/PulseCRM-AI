@@ -1,4 +1,5 @@
 import base64
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from app.database.dependencies import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LogMeetingRequest(BaseModel):
@@ -27,17 +30,20 @@ def log_meeting(req: LogMeetingRequest, db: Session = Depends(get_db), current_u
 
     try:
         result = run_state_graph(db, req.meeting_text, current_user.id)
-    except RuntimeError as e:
-        # Live LLM blocked (GROQ_API_KEY missing)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"AI workflow error: {str(e)}")
+        logger.warning(f"[ai_routes] Error in log_meeting graph: {e}")
+        return {
+            "success": False,
+            "message": "We could not process this meeting note automatically. Please verify the doctor and hospital details and try again.",
+            "error": "PROCESSING_ERROR"
+        }
 
     if not isinstance(result, dict):
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unexpected graph result")
-
-    if not result.get("success"):
-        return result
+        return {
+            "success": False,
+            "message": "Unexpected error processing meeting.",
+            "error": "UNEXPECTED_RESULT"
+        }
 
     return result
 
@@ -162,6 +168,13 @@ def _process_copilot_query(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Copilot error: {str(e)}",
         )
+
+    logger.info(
+        f"[COPILOT TRACE] User={current_user.id} | ConvID={req.conversation_id} | "
+        f"Input='{text[:60]}' | Mode={req.input_mode} | ActiveHCP={req.selected_hcp_name} | "
+        f"Intent={result.get('intent')} | PendingConf={result.get('pending_confirmation')} | "
+        f"Response='{result.get('response', '')[:80]}...'"
+    )
 
     if not result.get("success"):
         return {
