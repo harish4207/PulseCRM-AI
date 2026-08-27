@@ -329,16 +329,40 @@ def parse_time_expression(text: str) -> Optional[Tuple[int, int, str, str]]:
     if any(m in norm for m in ["evening", "sayantram", "సాయంత్రం"]):
         return 17, 0, "05:00 PM", "evening"
 
-    # 4. Fallback: single digit after at (e.g. 'at 3', 'at 11')
-    at_match = re.search(r"\bat\s+(\d{1,2})\b", norm, re.IGNORECASE)
-    if at_match:
-        hr = int(at_match.group(1))
+    # 4. English Word Times & Lone Numbers (e.g. 'make it 4', 'around four', 'at 4', '4:30', 'around 4:30')
+    num_words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+    word_m = re.search(r"\b(?:make\s+it|make\s+that|around|at|time\s+to)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b", norm, re.IGNORECASE)
+    if word_m:
+        hr = num_words[word_m.group(1).lower()]
         if hr < 8:
             hr += 12
         period = "PM" if hr >= 12 else "AM"
         disp_hr = hr if hr <= 12 else hr - 12
         disp_hr = 12 if disp_hr == 0 else disp_hr
-        return hr, 0, f"{disp_hr:02d}:00 {period}", at_match.group(0).strip()
+        return hr, 0, f"{disp_hr:02d}:00 {period}", word_m.group(0).strip()
+
+    colon_m = re.search(r"\b(\d{1,2}):(\d{2})\b", norm)
+    if colon_m:
+        hr = int(colon_m.group(1))
+        mn = int(colon_m.group(2))
+        if 1 <= hr <= 12:
+            if hr < 8:
+                hr += 12
+            period = "PM" if hr >= 12 else "AM"
+            disp_hr = hr if hr <= 12 else hr - 12
+            disp_hr = 12 if disp_hr == 0 else disp_hr
+            return hr, mn, f"{disp_hr:02d}:{mn:02d} {period}", colon_m.group(0).strip()
+
+    lone_m = re.search(r"\b(?:make\s+it|make\s+that|around|at|time\s+to)\s+(\d{1,2})\b", norm, re.IGNORECASE)
+    if lone_m:
+        hr = int(lone_m.group(1))
+        if 1 <= hr <= 12:
+            if hr < 8:
+                hr += 12
+            period = "PM" if hr >= 12 else "AM"
+            disp_hr = hr if hr <= 12 else hr - 12
+            disp_hr = 12 if disp_hr == 0 else disp_hr
+            return hr, 0, f"{disp_hr:02d}:00 {period}", lone_m.group(0).strip()
 
     return None
 
@@ -348,6 +372,9 @@ def extract_reminder_preference(text: str) -> Optional[Tuple[int, str]]:
         return None
 
     norm = text.lower()
+    if any(k in norm for k in ["no reminder", "remove reminder", "remove the reminder", "don't remind", "dont remind", "reminder vaddu", "no need reminder", "without reminder"]):
+        return 0, "No reminder"
+
     if not any(k in norm for k in ["remind", "reminder", "gurthu", "alert", "notification"]):
         return None
 
@@ -405,111 +432,87 @@ def extract_meeting_schedule_details(
     reminder_display = reminder_pref[1] if reminder_pref else "30 minutes before"
 
     planned_actions = ["CREATE_MEETING"]
-    if reminder_pref:
+    if reminder_pref and reminder_minutes > 0:
         planned_actions.append("CREATE_REMINDER")
 
-    evidence = {
-        "date": date_ev,
-        "time": time_ev,
-    }
-    if reminder_pref:
-        evidence["reminder"] = reminder_display
-
     return {
-        "action_id": str(uuid.uuid4())[:8],
-        "type": "SCHEDULE_MEETING",
         "meeting_time": meeting_datetime.isoformat(),
         "meeting_date_display": date_display,
         "meeting_time_display": time_display,
-        "location": location,
         "reminder_minutes": reminder_minutes,
         "reminder_display": reminder_display,
+        "location": location,
         "planned_actions": planned_actions,
-        "evidence": evidence,
     }
 
 
-def apply_meeting_schedule_correction(
-    pending_action: Dict[str, Any],
+def apply_meeting_correction(
+    current_action: Dict[str, Any],
     correction_text: str,
-    db_hcps: Optional[List[Any]] = None,
-) -> Tuple[Dict[str, Any], List[str]]:
-    updated = dict(pending_action)
+) -> Dict[str, Any]:
+    updated = dict(current_action)
     norm = correction_text.lower()
-    changes = []
+    changes = list(updated.get("changes_applied", []))
 
-    # 1. Time modification (e.g. "Actually make it 4 PM", "Change it to 11 AM", "4 ki marchu")
-    t_parsed = parse_time_expression(correction_text)
-    if t_parsed:
-        hr, mn, t_disp, _ = t_parsed
-        old_dt_str = updated.get("meeting_time")
-        if old_dt_str:
-            try:
-                cur_dt = datetime.fromisoformat(old_dt_str)
-                new_dt = cur_dt.replace(hour=hr, minute=mn)
-                updated["meeting_time"] = new_dt.isoformat()
-            except Exception:
-                pass
-        updated["meeting_time_display"] = t_disp
-        changes.append(f"Updated meeting time to {t_disp}")
+    date_parsed = parse_date_expression(correction_text)
+    if date_parsed:
+        updated["follow_up_date"] = date_parsed[0].isoformat()
+        updated["follow_up_display"] = date_parsed[1]
+        changes.append(f"Follow-up: {date_parsed[1]}")
 
-    # 2. Date modification (e.g. "Change it to Monday", "Make it next Friday", "November 5")
-    d_parsed = parse_date_expression(correction_text)
-    if d_parsed:
-        new_d, d_disp, _ = d_parsed
-        old_dt_str = updated.get("meeting_time")
-        if old_dt_str:
-            try:
-                cur_dt = datetime.fromisoformat(old_dt_str)
-                new_dt = new_d.replace(hour=cur_dt.hour, minute=cur_dt.minute)
-                updated["meeting_time"] = new_dt.isoformat()
-            except Exception:
-                updated["meeting_time"] = new_d.isoformat()
-        updated["meeting_date_display"] = d_disp
-        changes.append(f"Updated meeting date to {d_disp}")
+    prod_m = re.search(r"\b(CardioPress(?:-(?:50|75|100))?|Cancer Medicine|AmloPulse|GlycoCare|NeuroCalm|LipidGuard|RespiClear)\b", correction_text, re.IGNORECASE)
+    if prod_m:
+        updated["products_discussed"] = prod_m.group(1)
+        updated["product"] = prod_m.group(1)
+        changes.append(f"Product: {prod_m.group(1)}")
 
-    # 3. Reminder modification (e.g. "Remind me one hour before", "Remind me 30 minutes before")
-    if any(k in norm for k in ["remind", "reminder", "gurthu", "alert"]):
-        if any(k in norm for k in ["no reminder", "remove reminder", "reminder vaddu", "don't remind"]):
-            updated["reminder_minutes"] = None
-            updated["reminder_display"] = None
-            if "CREATE_REMINDER" in updated.get("actions", []):
-                updated["actions"] = [a for a in updated["actions"] if a != "CREATE_REMINDER"]
+    req_val, _ = extract_request_action(correction_text)
+    if req_val:
+        updated["doctor_request"] = req_val
+        updated["request"] = req_val
+        changes.append(f"Request: {req_val}")
+
+    if any(k in norm for k in ["no follow up", "no follow-up", "no followup", "remove follow"]):
+        updated["follow_up_date"] = None
+        updated["follow_up_display"] = "None"
+        updated["actions"] = [a for a in updated.get("actions", []) if a != "CREATE_FOLLOWUP"]
+        changes.append("Removed follow-up")
+
+    updated["changes_applied"] = changes
+    return updated
+
+
+def apply_meeting_schedule_correction(
+    current_action: Dict[str, Any],
+    correction_text: str,
+) -> Dict[str, Any]:
+    updated = dict(current_action)
+    norm = correction_text.lower()
+    changes = list(updated.get("changes_applied", []))
+
+    time_parsed = parse_time_expression(correction_text)
+    if time_parsed:
+        updated["meeting_time_display"] = time_parsed[2]
+        changes.append(f"Time: {time_parsed[2]}")
+
+    date_parsed = parse_date_expression(correction_text)
+    if date_parsed:
+        updated["meeting_date_display"] = date_parsed[1]
+        changes.append(f"Date: {date_parsed[1]}")
+
+    rem_pref = extract_reminder_preference(correction_text)
+    if rem_pref:
+        if rem_pref[0] == 0:
+            updated["reminder_minutes"] = 0
+            updated["reminder_display"] = "No reminder"
+            updated["actions"] = [a for a in updated.get("actions", []) if a != "CREATE_REMINDER"]
             changes.append("Removed reminder")
         else:
-            rem = extract_reminder_preference(correction_text)
-            if rem:
-                updated["reminder_minutes"] = rem[0]
-                updated["reminder_display"] = rem[1]
-                if "CREATE_REMINDER" not in updated.get("actions", []):
-                    updated["actions"] = updated.get("actions", []) + ["CREATE_REMINDER"]
-                changes.append(f"Updated reminder to {rem[1]}")
+            updated["reminder_minutes"] = rem_pref[0]
+            updated["reminder_display"] = rem_pref[1]
+            if "CREATE_REMINDER" not in updated.get("actions", []):
+                updated["actions"] = list(updated.get("actions", [])) + ["CREATE_REMINDER"]
+            changes.append(f"Reminder: {rem_pref[1]}")
 
-    # 4. Doctor / HCP modification (e.g. "Actually I meant Sharma", "Change doctor to Dr Ananya")
-    hcp_match = re.search(r"(?:actually\s+(?:i\s+meant|it\s+was|the\s+doctor\s+was)|doctor\s+was|doctor\s+to|change\s+doctor\s+to)\s+(?:dr\.?\s+)?([A-Za-z\s]+)", correction_text, re.IGNORECASE)
-    if hcp_match:
-        cand_name = hcp_match.group(1).strip()
-        cand_name = re.split(r"\s+(?:not|instead|and)\b", cand_name, flags=re.IGNORECASE)[0].strip()
-        if db_hcps:
-            from app.ai.fuzzy_matcher import calculate_similarity
-            best_hcp = None
-            best_s = 0.0
-            for h in db_hcps:
-                s = calculate_similarity(cand_name, h.doctor_name)
-                if s > best_s:
-                    best_s = s
-                    best_hcp = h
-            if best_hcp and best_s >= 0.6:
-                updated["hcp_id"] = best_hcp.id
-                updated["hcp_name"] = best_hcp.doctor_name
-                updated["hospital"] = best_hcp.hospital
-                changes.append(f"Updated doctor to {best_hcp.doctor_name}")
-
-    # 5. Location modification
-    loc_match = re.search(r"(?:location\s+(?:is|to)|hospital\s+(?:is|to))\s+([A-Za-z\s]+(?:Hospital|Clinic|Care|KIMS|Apollo|Manipal|Sunshine))", correction_text, re.IGNORECASE)
-    if loc_match:
-        new_loc = loc_match.group(1).strip()
-        updated["location"] = new_loc
-        changes.append(f"Updated location to {new_loc}")
-
-    return updated, changes
+    updated["changes_applied"] = changes
+    return updated

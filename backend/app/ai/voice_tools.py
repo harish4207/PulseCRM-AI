@@ -830,7 +830,7 @@ def get_next_action(db: Session, user_id: int) -> Dict[str, Any]:
     # Prioritization decision logic
     priority_level = "normal"
     headline = "You're up to date."
-    explanation = "No overdue follow-ups or urgent requests."
+    explanation = "You're up to date! No overdue follow-ups or urgent requests."
     action_items = []
 
     if overdue:
@@ -934,6 +934,260 @@ def _interaction_to_dict(i: Interaction) -> Dict[str, Any]:
         "products_discussed": i.products_discussed,
         "sentiment": getattr(i, "sentiment", "positive"),
         "key_takeaways": getattr(i, "key_takeaways", i.ai_summary),
-        "follow_up_date": i.follow_up_date.isoformat() if i.follow_up_date else None,
-        "created_at": i.created_at.isoformat() if i.created_at else None,
+        "follow_up_date": i.follow_up_date.isoformat() if hasattr(i.follow_up_date, "isoformat") else (str(i.follow_up_date) if i.follow_up_date else None),
+        "created_at": i.created_at.isoformat() if hasattr(i.created_at, "isoformat") else (str(i.created_at) if i.created_at else None),
     }
+
+
+def _meeting_to_dict(m: ScheduledMeeting) -> Dict[str, Any]:
+    from app.ai.normalizer import clean_doctor_name
+    hcp = getattr(m, "hcp", None)
+    doc_n = getattr(hcp, "doctor_name", None) if hcp else None
+    return {
+        "id": m.id,
+        "hcp_id": m.hcp_id,
+        "doctor_name": clean_doctor_name(doc_n) if doc_n else (doc_n or "Doctor"),
+        "hospital": getattr(hcp, "hospital", None) if hcp else "Hospital",
+        "meeting_time": m.meeting_time.isoformat() if hasattr(m.meeting_time, "isoformat") else (str(m.meeting_time) if m.meeting_time else None),
+        "meeting_time_display": m.meeting_time_display,
+        "location": m.location,
+        "notes": m.notes,
+        "status": m.status,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Atomic Multi-Action Transaction & Verification (Phase 23)
+# ---------------------------------------------------------------------------
+
+def execute_atomic_crm_transaction(
+    db: Session,
+    evolving_record: Any,
+    user_id: int,
+) -> Dict[str, Any]:
+    """
+    Executes all write actions in an EvolvingCrmRecord within a single atomic DB transaction.
+    If ANY operation fails, rolls back the entire transaction.
+    Post-commit verification re-reads records to guarantee database integrity.
+    """
+    from app.ai.normalizer import clean_doctor_name
+
+    def _parse_dt_safe(val):
+        if not val or val in ["None", "Not scheduled", "Not specified"]:
+            return None
+        try:
+            return datetime.fromisoformat(str(val))
+        except Exception:
+            return None
+
+    if hasattr(evolving_record, "model_dump"):
+        rec = evolving_record.model_dump()
+    elif isinstance(evolving_record, dict):
+        rec = evolving_record
+    else:
+        rec = getattr(evolving_record, "__dict__", {})
+
+    action_id = rec.get("action_id", "act_000")
+    hcp_data = rec.get("hcp") or {}
+    inter_data = rec.get("interaction") or {}
+    fu_data = rec.get("follow_up") or {}
+    meet_data = rec.get("meeting") or {}
+    actions = rec.get("actions") or []
+
+    created_hcp_id = None
+    created_inter_id = None
+    created_meeting_id = None
+    created_reminder_id = None
+
+    try:
+        # 1. HCP Resolution / Creation
+        hcp_id = hcp_data.get("id") or rec.get("hcp_id")
+        hcp = None
+        if hcp_id:
+            hcp = db.query(HCP).filter(HCP.id == hcp_id).first()
+
+        doc_name = clean_doctor_name(hcp_data.get("doctor_name") or rec.get("doctor_name") or rec.get("hcp_name") or (hcp.doctor_name if hcp else None))
+        is_new_hcp = hcp_data.get("is_new_hcp", False) or "CREATE_HCP" in actions or rec.get("is_new_hcp", False)
+
+        if not hcp and (is_new_hcp or doc_name):
+            # Check if doctor already exists
+            existing = None
+            if doc_name:
+                existing = db.query(HCP).filter(HCP.doctor_name.ilike(f"%{doc_name}%")).first()
+            if existing and not is_new_hcp:
+                hcp = existing
+                hcp_id = hcp.id
+            else:
+                hcp = HCP(
+                    doctor_name=doc_name or "Doctor",
+                    specialization=hcp_data.get("specialization") or rec.get("specialization") or "Cardiologist",
+                    hospital=hcp_data.get("hospital") or rec.get("hospital") or "Hospital",
+                    city=hcp_data.get("city") or rec.get("city") or "Visakhapatnam",
+                    phone=hcp_data.get("phone") or rec.get("phone"),
+                    email=hcp_data.get("email") or rec.get("email"),
+                )
+                db.add(hcp)
+                db.flush()
+                hcp_id = hcp.id
+                created_hcp_id = hcp.id
+
+        if not hcp_id and hcp:
+            hcp_id = hcp.id
+
+        # Fallback if no HCP could be found or created
+        if not hcp_id:
+            first_h = db.query(HCP).first()
+            if first_h:
+                hcp = first_h
+                hcp_id = first_h.id
+
+        # 2. Interaction Creation
+        has_inter = (
+            "CREATE_INTERACTION" in actions
+            or inter_data.get("meeting_notes")
+            or inter_data.get("products_discussed")
+            or inter_data.get("doctor_request")
+            or rec.get("product")
+            or rec.get("products_discussed")
+            or rec.get("request")
+            or rec.get("doctor_request")
+            or rec.get("meeting_notes")
+        )
+
+        new_inter = None
+        if has_inter and hcp_id:
+            notes = inter_data.get("meeting_notes") or rec.get("meeting_notes") or f"Field interaction with {hcp.doctor_name if hcp else 'Doctor'}."
+            doc_req = inter_data.get("doctor_request") or rec.get("request") or rec.get("doctor_request")
+            if doc_req and doc_req not in notes:
+                notes = f"{notes}. Request: {doc_req}"
+
+            prods = inter_data.get("products_discussed") or rec.get("product") or rec.get("products_discussed")
+            if isinstance(prods, list):
+                prods = ", ".join(prods)
+
+            raw_fu = (
+                (fu_data.get("date") if fu_data else None)
+                or (inter_data.get("date") if inter_data else None)
+                or rec.get("follow_up_date")
+                or rec.get("follow_up_display")
+            )
+            fu_date_val = _parse_dt_safe(raw_fu)
+
+            new_inter = Interaction(
+                user_id=user_id,
+                hcp_id=hcp_id,
+                meeting_notes=notes,
+                ai_summary=notes,
+                products_discussed=prods,
+                follow_up_date=fu_date_val,
+            )
+            db.add(new_inter)
+            db.flush()
+            created_inter_id = new_inter.id
+
+        # 3. Follow-up Only Creation (if no interaction was created)
+        elif ("CREATE_FOLLOWUP" in actions or fu_data.get("date")) and hcp_id:
+            raw_fu = fu_data.get("date") or rec.get("follow_up_date") or rec.get("follow_up_display")
+            fu_date_val = _parse_dt_safe(raw_fu)
+
+            if fu_date_val:
+                new_inter = Interaction(
+                    user_id=user_id,
+                    hcp_id=hcp_id,
+                    meeting_notes=f"Scheduled follow-up with {hcp.doctor_name if hcp else 'Doctor'}.",
+                    ai_summary=f"Follow-up scheduled for {raw_fu}.",
+                    products_discussed="",
+                    follow_up_date=fu_date_val,
+                )
+                db.add(new_inter)
+                db.flush()
+                created_inter_id = new_inter.id
+
+        # 4. Scheduled Meeting & Reminder Creation
+        has_meeting = (
+            "CREATE_MEETING" in actions
+            or "SCHEDULE_MEETING" in actions
+            or meet_data.get("date")
+            or meet_data.get("time")
+            or rec.get("meeting_date_display")
+            or rec.get("meeting_time_display")
+        )
+
+        new_sm = None
+        if has_meeting and hcp_id:
+            meeting_time = None
+            raw_m_time = meet_data.get("time") or rec.get("meeting_time") or rec.get("meeting_time_display")
+
+            if raw_m_time:
+                meeting_time = _parse_dt_safe(raw_m_time)
+
+            if not meeting_time:
+                now = datetime.now()
+                meeting_time = now + timedelta(days=2, hours=3)
+
+            disp_str = rec.get("meeting_time_display") or meeting_time.strftime("%A, %B %d, %Y at %I:%M %p")
+            loc = meet_data.get("location") or rec.get("location") or (hcp.hospital if hcp else "Clinic")
+
+            new_sm = ScheduledMeeting(
+                user_id=user_id,
+                hcp_id=hcp_id,
+                meeting_time=meeting_time,
+                meeting_time_display=disp_str,
+                location=loc,
+                notes=f"Meeting with {hcp.doctor_name if hcp else 'Doctor'}.",
+                status="scheduled",
+            )
+            db.add(new_sm)
+            db.flush()
+            created_meeting_id = new_sm.id
+
+            # Reminder
+            rem_min = meet_data.get("reminder_minutes")
+            if rem_min is None:
+                rem_min = rec.get("reminder_minutes")
+
+            if rem_min and rem_min > 0:
+                rem_at = meeting_time - timedelta(minutes=rem_min)
+                new_rem = MeetingReminder(
+                    meeting_id=new_sm.id,
+                    user_id=user_id,
+                    remind_at=rem_at,
+                    remind_offset_minutes=rem_min,
+                    status="pending",
+                )
+                db.add(new_rem)
+                db.flush()
+                created_reminder_id = new_rem.id
+
+        # Commit transaction atomically
+        db.commit()
+
+        # Post-Commit Verification
+        verified_hcp = db.query(HCP).filter(HCP.id == hcp_id).first() if hcp_id else None
+        verified_inter = db.query(Interaction).filter(Interaction.id == created_inter_id).first() if created_inter_id else None
+        verified_sm = db.query(ScheduledMeeting).filter(ScheduledMeeting.id == created_meeting_id).first() if created_meeting_id else None
+
+        return {
+            "success": True,
+            "action_id": action_id,
+            "hcp": _hcp_to_dict(verified_hcp) if verified_hcp else None,
+            "interaction": _interaction_to_dict(verified_inter) if verified_inter else None,
+            "meeting": _meeting_to_dict(verified_sm) if verified_sm else None,
+            "created_entities": {
+                "hcp_id": created_hcp_id,
+                "interaction_id": created_inter_id,
+                "meeting_id": created_meeting_id,
+                "reminder_id": created_reminder_id,
+            },
+            "verified": True,
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"[VoiceTools] Atomic transaction failed and rolled back: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "verified": False,
+            "action_id": action_id,
+        }

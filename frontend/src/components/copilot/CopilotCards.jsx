@@ -930,3 +930,159 @@ export function NextActionCard({ data, onActionClick }) {
     </div>
   );
 }
+
+export function CrmDraftCard({ data, onConfirm, onCancel, onUpdateMeeting }) {
+  if (!data) return null;
+  const {
+    doctor_name,
+    hcp_name,
+    hospital,
+    city,
+    specialization,
+    product,
+    products_discussed,
+    request,
+    doctor_request,
+    follow_up_display,
+    meeting_date_display,
+    meeting_time_display,
+    reminder_display,
+    is_new_hcp,
+    is_completed,
+    status,
+  } = data;
+
+  const isCompleted = is_completed || status === "completed";
+  const docName = doctor_name || hcp_name || "Doctor";
+  const hospText = hospital ? (city && !hospital.includes(city) ? `${hospital} · ${city}` : hospital) : null;
+  const prodText = (product || products_discussed) && (product !== "None" && product !== "Not specified") ? (product || products_discussed) : null;
+  const reqText = (request || doctor_request) && (request !== "None" && request !== "Not specified") ? (request || doctor_request) : null;
+  const timingText = meeting_date_display && meeting_time_display
+    ? `${meeting_date_display} · ${meeting_time_display}`
+    : (follow_up_display && follow_up_display !== "Not scheduled" ? follow_up_display : null);
+  const remText = reminder_display && reminder_display.toLowerCase() !== "no reminder" ? reminder_display : null;
+
+  return (
+    <div
+      style={{
+        marginTop: "0.5rem",
+        padding: "0.75rem 0.9rem",
+        borderRadius: "10px",
+        backgroundColor: "#ffffff",
+        border: isCompleted ? "1px solid #bbf7d0" : "1px solid #fed7aa",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.45rem",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "0.35rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.03em", color: isCompleted ? "#166534" : "#9a3412" }}>
+            {isCompleted ? "✓ SAVED TO CRM" : "CRM DRAFT"}
+          </span>
+        </div>
+        <span
+          style={{
+            fontSize: "0.65rem",
+            fontWeight: 600,
+            padding: "0.1rem 0.45rem",
+            borderRadius: "4px",
+            backgroundColor: isCompleted ? "#dcfce7" : "#ffedd5",
+            color: isCompleted ? "#166534" : "#9a3412",
+          }}
+        >
+          {isCompleted ? "✓ Committed" : "Draft / Requires confirmation"}
+        </span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.4rem", fontSize: "0.75rem" }}>
+        <div>
+          <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Doctor</div>
+          <div style={{ fontWeight: 700, color: "#0f172a" }}>
+            {docName} {is_new_hcp && <span style={{ fontSize: "0.6rem", color: "#0284c7" }}>(New HCP)</span>}
+          </div>
+          {specialization && <div style={{ fontSize: "0.68rem", color: "#0284c7" }}>{specialization}</div>}
+        </div>
+
+        {hospText && (
+          <div>
+            <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Hospital</div>
+            <div style={{ color: "#334155" }}>{hospText}</div>
+          </div>
+        )}
+
+        {prodText && (
+          <div>
+            <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Product</div>
+            <div style={{ color: "#0284c7", fontWeight: 600 }}>{prodText}</div>
+          </div>
+        )}
+
+        {reqText && (
+          <div>
+            <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Request</div>
+            <div style={{ color: "#78350f" }}>{reqText}</div>
+          </div>
+        )}
+
+        {timingText && (
+          <div>
+            <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Meeting / Follow-up</div>
+            <div style={{ color: "#0f172a", fontWeight: 600 }}>{timingText}</div>
+          </div>
+        )}
+
+        {remText && (
+          <div>
+            <div style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 600 }}>Reminder</div>
+            <div style={{ color: "#64748b" }}>🔔 {remText}</div>
+          </div>
+        )}
+      </div>
+
+      {isCompleted ? (
+        <div style={{ padding: "0.35rem 0.55rem", borderRadius: "6px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "0.7rem", color: "#166534", fontWeight: 600 }}>
+          ✓ Saved to your CRM database
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.2rem" }}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              padding: "0.35rem 0.75rem",
+              borderRadius: "6px",
+              backgroundColor: "#16a34a",
+              color: "#ffffff",
+              border: "none",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ✓ Confirm & Save
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: "0.35rem 0.65rem",
+              borderRadius: "6px",
+              backgroundColor: "#ffffff",
+              color: "#dc2626",
+              border: "1px solid #fecaca",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

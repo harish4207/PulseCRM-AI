@@ -324,12 +324,12 @@ export function LogMeeting() {
   };
 
   return (
-    <AppShell title="AI Meeting Workspace">
-      <div className="content-container-workflow" style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+    <AppShell title="Meeting Assistant">
+      <div className="content-container-workflow" style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <PageHeader
-          tag="AI MEETING INTELLIGENCE"
-          title="Log Meeting with AI"
-          description="Capture the conversation, then let PulseCRM turn it into structured HCP intelligence."
+          tag="MEETING ASSISTANT"
+          title="Meeting Assistant"
+          description="Prepare, capture and manage doctor meetings with AI."
           actions={
             pipelineState !== "idle" && (
               <button
@@ -341,8 +341,10 @@ export function LogMeeting() {
                   alignItems: "center",
                   gap: "0.4rem",
                   padding: "0.55rem 0.9rem",
-                  minHeight: "38px",
+                  minHeight: "44px",
                   fontSize: "0.8125rem",
+                  borderRadius: "8px",
+                  cursor: "pointer",
                 }}
               >
                 <RefreshIcon style={{ fontSize: "1rem" }} />

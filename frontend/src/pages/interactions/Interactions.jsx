@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   EventNote as InteractionIcon,
-  AutoAwesome as AiIcon,
+  AutoAwesome as SparkleIcon,
   Schedule as ScheduleIcon,
   Search as SearchIcon,
   Medication as MedicineIcon,
   Close as CloseIcon,
+  LocalHospital as HospitalIcon,
+  Add as AddIcon,
 } from "@mui/icons-material";
 
 import AppShell from "../../components/dashboard/AppShell";
@@ -17,10 +19,11 @@ import LoadingState from "../../components/common/LoadingState";
 import interactionService from "../../services/interactionService";
 
 export function Interactions() {
+  const navigate = useNavigate();
   const [interactions, setInteractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterMode, setFilterMode] = useState("all"); // 'all' | 'followup' | 'ai'
+  const [filterMode, setFilterMode] = useState("all");
   const [selectedInteraction, setSelectedInteraction] = useState(null);
 
   const fetchInteractions = async () => {
@@ -48,8 +51,6 @@ export function Interactions() {
         month: "short",
         day: "numeric",
         year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
       }).format(new Date(dateStr));
     } catch {
       return dateStr;
@@ -57,10 +58,11 @@ export function Interactions() {
   };
 
   const filteredInteractions = interactions.filter((item) => {
+    const docName = item.hcp?.doctor_name || "";
     const matchesSearch =
+      docName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.products_discussed || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.meeting_notes || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(item.hcp_id).includes(searchQuery);
+      (item.meeting_notes || "").toLowerCase().includes(searchQuery.toLowerCase());
 
     if (filterMode === "followup") {
       return matchesSearch && Boolean(item.follow_up_date);
@@ -73,39 +75,46 @@ export function Interactions() {
 
   return (
     <AppShell title="Interactions">
-      <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         <PageHeader
-          tag="CRM Activity History"
-          title="Interaction History"
-          description="Timeline of healthcare professional meetings, product detailing, and follow-up commitments."
+          tag="FIELD ACTIVITY"
+          title="Interactions"
+          description="Review what happened during your doctor visits."
           actions={
             <Link
               to="/ai-meeting"
-              className="btn-primary"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.4rem",
-                padding: "0.6rem 1.1rem",
-                minHeight: "42px",
+                padding: "0.55rem 1rem",
+                minHeight: "44px",
                 fontSize: "0.8125rem",
+                borderRadius: "8px",
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                fontWeight: 600,
                 textDecoration: "none",
+                boxShadow: "0 2px 4px rgba(2,132,199,0.2)",
               }}
             >
-              <AiIcon style={{ fontSize: "1.1rem" }} />
-              <span>Log Meeting with AI</span>
+              <AddIcon style={{ fontSize: "1.1rem" }} />
+              <span>Log Interaction</span>
             </Link>
           }
         />
 
         {/* Filter bar */}
         <div
-          className="pulse-card"
           style={{
             padding: "1rem 1.25rem",
+            backgroundColor: "#ffffff",
+            borderRadius: "12px",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             display: "flex",
             flexDirection: "column",
-            gap: "0.85rem",
+            gap: "0.75rem",
           }}
         >
           <div style={{ position: "relative", width: "100%" }}>
@@ -121,23 +130,25 @@ export function Interactions() {
             />
             <input
               type="text"
-              placeholder="Search by products, keywords, or HCP ID..."
+              placeholder="Search interactions by doctor, product, notes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 width: "100%",
                 padding: "0.6rem 0.85rem 0.6rem 2.4rem",
-                borderRadius: "10px",
+                borderRadius: "8px",
                 border: "1px solid #cbd5e1",
                 backgroundColor: "#f8fafc",
                 fontSize: "0.875rem",
                 color: "#0f172a",
+                boxSizing: "border-box",
+                minHeight: "44px",
               }}
             />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b" }}>
               Filter:
             </span>
             {[
@@ -150,13 +161,14 @@ export function Interactions() {
                 type="button"
                 onClick={() => setFilterMode(tab.value)}
                 style={{
-                  padding: "0.35rem 0.75rem",
+                  padding: "0.25rem 0.65rem",
                   borderRadius: "9999px",
-                  fontSize: "0.75rem",
+                  fontSize: "0.72rem",
                   fontWeight: 600,
                   backgroundColor: filterMode === tab.value ? "#0284c7" : "#f1f5f9",
                   color: filterMode === tab.value ? "#ffffff" : "#475569",
                   border: filterMode === tab.value ? "1px solid #0284c7" : "1px solid #e2e8f0",
+                  cursor: "pointer",
                 }}
               >
                 {tab.label}
@@ -165,97 +177,118 @@ export function Interactions() {
           </div>
         </div>
 
-        {/* List of Interactions */}
+        {/* Timeline / Cards */}
         {loading ? (
-          <LoadingState label="Loading interaction timeline..." />
+          <LoadingState label="Loading interaction history..." />
         ) : filteredInteractions.length === 0 ? (
           <EmptyState
-            title="No interaction records found"
-            description="Use the AI Meeting Logger to convert your notes into structured CRM records."
+            iconType="medical"
+            title={searchQuery || filterMode !== "all" ? "No matching interactions found" : "No interactions recorded yet"}
+            description={
+              searchQuery || filterMode !== "all"
+                ? "Try adjusting your search query or filter."
+                : "Log your first doctor visit or tell Ask PulseCRM about what happened."
+            }
             action={
-              <Link
-                to="/ai-meeting"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.55rem 1rem",
-                  borderRadius: "8px",
-                  backgroundColor: "#0284c7",
-                  color: "#ffffff",
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                }}
-              >
-                <AiIcon style={{ fontSize: "1.1rem" }} />
-                <span>Log Meeting with AI</span>
-              </Link>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center" }}>
+                <Link
+                  to="/ai-meeting"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.55rem 1rem",
+                    borderRadius: "8px",
+                    backgroundColor: "#0284c7",
+                    color: "#ffffff",
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    minHeight: "44px",
+                  }}
+                >
+                  <AddIcon style={{ fontSize: "1.1rem" }} />
+                  <span>Log Interaction</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => navigate("/voice-copilot")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.55rem 1rem",
+                    borderRadius: "8px",
+                    backgroundColor: "#f0f9ff",
+                    color: "#0369a1",
+                    border: "1px solid #bae6fd",
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    minHeight: "44px",
+                  }}
+                >
+                  <SparkleIcon style={{ fontSize: "1rem" }} />
+                  <span>Ask PulseCRM</span>
+                </button>
+              </div>
             }
           />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {filteredInteractions.map((item) => (
               <div
                 key={item.id}
-                className="pulse-card pulse-card-interactive"
+                onClick={() => setSelectedInteraction(item)}
                 style={{
                   padding: "1rem 1.25rem",
+                  borderRadius: "12px",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  cursor: "pointer",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.75rem",
-                  cursor: "pointer",
+                  gap: "0.45rem",
+                  transition: "all 0.15s ease",
                 }}
-                onClick={() => setSelectedInteraction(item)}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a" }}>
-                      Healthcare Professional #{item.hcp_id}
+                      {item.hcp?.doctor_name || `Doctor #${item.hcp_id}`}
                     </span>
-                    {item.ai_summary && (
-                      <StatusBadge variant="teal" size="sm">
-                        AI Logged
-                      </StatusBadge>
+                    {item.hcp?.hospital && (
+                      <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                        · {item.hcp.hospital} {item.hcp.city ? `(${item.hcp.city})` : ""}
+                      </span>
                     )}
                   </div>
-
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                    Recorded on {formatDate(item.created_at)}
+                  <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>
+                    {formatDate(item.created_at)}
                   </span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <MedicineIcon style={{ fontSize: "1.05rem", color: "#2563eb" }} />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>
-                    Products:
-                  </span>
-                  <StatusBadge variant="product" size="sm" withDot={false}>
-                    {item.products_discussed || "General Detailing"}
-                  </StatusBadge>
-                </div>
+                {item.products_discussed && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.15rem 0.45rem", borderRadius: "4px", backgroundColor: "#e0f2fe", color: "#0284c7" }}>
+                      {item.products_discussed}
+                    </span>
+                    {item.interaction_type && (
+                      <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.15rem 0.45rem", borderRadius: "4px", backgroundColor: "#f1f5f9", color: "#475569" }}>
+                        {item.interaction_type}
+                      </span>
+                    )}
+                  </div>
+                )}
 
-                <p style={{ fontSize: "0.875rem", color: "#334155", lineHeight: 1.5, margin: 0, wordBreak: "break-word" }}>
-                  {item.meeting_notes}
+                <p style={{ fontSize: "0.8rem", color: "#334155", margin: 0, lineHeight: 1.5, wordBreak: "break-word" }}>
+                  {item.meeting_notes || item.ai_summary || "Routine relationship meeting."}
                 </p>
 
                 {item.follow_up_date && (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.4rem 0.75rem",
-                      borderRadius: "8px",
-                      backgroundColor: "#fffbeb",
-                      border: "1px solid #fde68a",
-                      color: "#92400e",
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      alignSelf: "flex-start",
-                    }}
-                  >
-                    <ScheduleIcon style={{ fontSize: "0.95rem" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.72rem", color: "#d97706", fontWeight: 600, marginTop: "0.2rem" }}>
+                    <ScheduleIcon style={{ fontSize: "0.85rem" }} />
                     <span>Follow-up: {formatDate(item.follow_up_date)}</span>
                   </div>
                 )}
@@ -264,12 +297,12 @@ export function Interactions() {
           </div>
         )}
 
-        {/* Modal / Detail Drawer for selected interaction */}
+        {/* Modal: Interaction Details */}
         {selectedInteraction && (
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Interaction details"
+            aria-label="Interaction Details"
             style={{
               position: "fixed",
               inset: 0,
@@ -280,122 +313,70 @@ export function Interactions() {
               justifyContent: "center",
               zIndex: 50,
               padding: "0.75rem",
-              overflowY: "auto",
             }}
             onClick={() => setSelectedInteraction(null)}
           >
             <div
-              className="pulse-card"
               style={{
                 width: "95vw",
-                maxWidth: "600px",
-                padding: "1.25rem sm:padding-1.75rem",
+                maxWidth: "520px",
+                padding: "1.5rem",
                 backgroundColor: "#ffffff",
+                borderRadius: "14px",
                 maxHeight: "90vh",
                 overflowY: "auto",
+                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1rem",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#0284c7" }}>
-                    Interaction #{selectedInteraction.id} Details
-                  </div>
-                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
-                    Doctor #{selectedInteraction.hcp_id}
+                  <h3 style={{ fontSize: "1.15rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                    {selectedInteraction.hcp?.doctor_name || `Doctor #${selectedInteraction.hcp_id}`}
                   </h3>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "2px" }}>
+                    {selectedInteraction.hcp?.hospital} · {formatDate(selectedInteraction.created_at)}
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedInteraction(null)}
-                  style={{ color: "#64748b", padding: "0.4rem", minWidth: "36px", minHeight: "36px" }}
+                  style={{ color: "#64748b", background: "none", border: "none", padding: "0.4rem", cursor: "pointer", minWidth: "36px", minHeight: "36px" }}
                   aria-label="Close dialog"
                 >
                   <CloseIcon fontSize="small" />
                 </button>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                    Products Discussed
-                  </div>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#0f172a" }}>
-                    {selectedInteraction.products_discussed || "General Detailing"}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                    Field Notes & Discussion
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.85rem",
-                      borderRadius: "10px",
-                      backgroundColor: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      fontSize: "0.875rem",
-                      color: "#334155",
-                      lineHeight: 1.6,
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {selectedInteraction.meeting_notes}
-                  </div>
-                </div>
-
-                {selectedInteraction.ai_summary && (
-                  <div>
-                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#0d9488", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                      AI Intelligence Summary
-                    </div>
-                    <div
-                      style={{
-                        padding: "0.85rem",
-                        borderRadius: "10px",
-                        backgroundColor: "#f0fdf4",
-                        border: "1px solid #bbf7d0",
-                        fontSize: "0.875rem",
-                        color: "#166534",
-                        lineHeight: 1.6,
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {selectedInteraction.ai_summary}
-                    </div>
-                  </div>
-                )}
-
-                {selectedInteraction.follow_up_date && (
-                  <div>
-                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#d97706", textTransform: "uppercase", marginBottom: "0.25rem" }}>
-                      Follow-up Commitment
-                    </div>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e" }}>
-                      {formatDate(selectedInteraction.follow_up_date)}
-                    </div>
-                  </div>
-                )}
+              <div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Notes</div>
+                <p style={{ fontSize: "0.875rem", color: "#0f172a", lineHeight: 1.6, marginTop: "0.25rem" }}>
+                  {selectedInteraction.meeting_notes || "No notes recorded."}
+                </p>
               </div>
 
-              <div style={{ marginTop: "1.5rem", display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedInteraction(null)}
-                  style={{
-                    padding: "0.55rem 1.25rem",
-                    minHeight: "40px",
-                    borderRadius: "8px",
-                    backgroundColor: "#f1f5f9",
-                    color: "#334155",
-                    fontSize: "0.8125rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+              {selectedInteraction.ai_summary && (
+                <div style={{ padding: "0.75rem", borderRadius: "8px", backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#0369a1", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                    <SparkleIcon style={{ fontSize: "0.9rem" }} /> AI Summary
+                  </div>
+                  <p style={{ fontSize: "0.8rem", color: "#0c4a6e", marginTop: "0.25rem", margin: 0, lineHeight: 1.5 }}>
+                    {selectedInteraction.ai_summary}
+                  </p>
+                </div>
+              )}
+
+              {selectedInteraction.follow_up_date && (
+                <div style={{ padding: "0.75rem", borderRadius: "8px", backgroundColor: "#fffbeb", border: "1px solid #fde68a" }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#92400e" }}>Follow-up Commitment</div>
+                  <div style={{ fontSize: "0.8rem", color: "#78350f", marginTop: "0.25rem" }}>
+                    Scheduled for: <strong>{formatDate(selectedInteraction.follow_up_date)}</strong>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

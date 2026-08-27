@@ -11,6 +11,7 @@ import LogMeeting from "../pages/meetings/LogMeeting";
 import Analytics from "../pages/analytics/Analytics";
 import Settings from "../pages/settings/Settings";
 import VoiceCopilot from "../pages/copilot/VoiceCopilot";
+import FollowUps from "../pages/followups/FollowUps";
 import ProtectedRoute from "./ProtectedRoute";
 
 function PublicRoute() {
@@ -25,12 +26,12 @@ function PublicRoute() {
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#f8fafc",
-          color: "#64748b",
+          color: "#0369a1",
           fontSize: "0.95rem",
           fontWeight: 600,
         }}
       >
-        Initializing PulseCRM session...
+        PulseCRM: Preparing your workspace...
       </div>
     );
   }
@@ -55,10 +56,12 @@ export function AppRoutes() {
         {/* Authenticated CRM routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/hcps" element={<Doctors />} />
-          <Route path="/interactions" element={<Interactions />} />
-          <Route path="/ai-meeting" element={<LogMeeting />} />
           <Route path="/voice-copilot" element={<VoiceCopilot />} />
+          <Route path="/ai-meeting" element={<LogMeeting />} />
+          <Route path="/hcps" element={<Doctors />} />
+          <Route path="/directory" element={<Doctors />} />
+          <Route path="/interactions" element={<Interactions />} />
+          <Route path="/followups" element={<FollowUps />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

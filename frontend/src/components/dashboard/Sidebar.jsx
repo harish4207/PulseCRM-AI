@@ -5,12 +5,13 @@ import {
   SpaceDashboardOutlined as DashboardIcon,
   PeopleAltOutlined as HcpIcon,
   EventNoteOutlined as InteractionIcon,
-  AutoAwesomeOutlined as AiIcon,
+  EventAvailableOutlined as AiIcon,
+  AssignmentTurnedInOutlined as FollowupIcon,
   BarChartOutlined as AnalyticsIcon,
   SettingsOutlined as SettingsIcon,
   LogoutOutlined as LogoutIcon,
   Close as CloseIcon,
-  RecordVoiceOver as CopilotIcon,
+  AutoAwesome as CopilotIcon,
 } from "@mui/icons-material";
 
 import AppLogo from "../common/AppLogo";
@@ -18,10 +19,11 @@ import { logout } from "../../store/slices/authSlice";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: DashboardIcon },
-  { label: "HCPs", path: "/hcps", icon: HcpIcon },
+  { label: "Ask PulseCRM", path: "/voice-copilot", icon: CopilotIcon, badge: "AI" },
+  { label: "Meeting Assistant", path: "/ai-meeting", icon: AiIcon },
+  { label: "Doctors", path: "/directory", icon: HcpIcon },
   { label: "Interactions", path: "/interactions", icon: InteractionIcon },
-  { label: "AI Meeting", path: "/ai-meeting", icon: AiIcon, highlight: true },
-  { label: "Voice Copilot", path: "/voice-copilot", icon: CopilotIcon, badge: "NEW" },
+  { label: "Follow-ups", path: "/followups", icon: FollowupIcon },
   { label: "Analytics", path: "/analytics", icon: AnalyticsIcon },
   { label: "Settings", path: "/settings", icon: SettingsIcon },
 ];

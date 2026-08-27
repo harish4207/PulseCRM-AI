@@ -36,6 +36,7 @@ import {
   AnalyticsCard,
   MeetingScheduleCard,
   NextActionCard,
+  CrmDraftCard,
 } from "../../components/copilot/CopilotCards";
 
 const S = {
@@ -187,6 +188,14 @@ function ChatBubble({
                   onUpdateMeeting={onUpdateMeeting}
                 />
               )}
+              {cardData.type === "crm_draft_card" && (
+                <CrmDraftCard
+                  data={cardData}
+                  onConfirm={onConfirmAction}
+                  onCancel={onCancelAction}
+                  onUpdateMeeting={onUpdateMeeting}
+                />
+              )}
               {cardData.type === "next_action_card" && (
                 <NextActionCard
                   data={cardData}
@@ -202,6 +211,94 @@ function ChatBubble({
             </>
           )}
         </div>
+
+        {/* Smart Contextual Action Chips (Shortcuts only) */}
+        {!isUser && (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.35rem",
+              flexWrap: "wrap",
+              marginTop: "0.2rem",
+            }}
+          >
+            {cardData?.type === "hcp_card" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery(`What did we discuss with ${cardData.doctor_name || "this doctor"} last time?`)}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  View Interactions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery(`Schedule meeting with ${cardData.doctor_name || "this doctor"} next week`)}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  Schedule Meeting
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery(`Prepare pre-meeting briefing for ${cardData.doctor_name || "this doctor"}`)}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  Prepare Briefing
+                </button>
+              </>
+            )}
+            {cardData?.type === "interaction_card" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery("Schedule follow-up for next Friday")}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  Schedule Follow-up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery("What should I do next?")}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  What to do next?
+                </button>
+              </>
+            )}
+            {(cardData?.type === "meeting_schedule_confirmation" || cardData?.type === "meeting_capture_confirmation" || cardData?.type === "crm_draft_card") && !cardData.is_completed && cardData.status !== "completed" && (
+              <>
+                <button
+                  type="button"
+                  onClick={onConfirmAction}
+                  style={{ fontSize: "0.7rem", fontWeight: 600, padding: "0.2rem 0.55rem", borderRadius: "9999px", backgroundColor: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", cursor: "pointer" }}
+                >
+                  ✓ Confirm & Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery("Actually make it 4 PM")}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  Make it 4 PM
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickQuery("Actually don't remind me")}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", cursor: "pointer" }}
+                >
+                  No Reminder
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelAction}
+                  style={{ fontSize: "0.7rem", fontWeight: 500, padding: "0.2rem 0.5rem", borderRadius: "9999px", backgroundColor: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Action / Meta row */}
         <div
@@ -299,32 +396,29 @@ function ChatBubble({
   );
 }
 
-function ThinkingIndicator({ step }) {
+function ThinkingIndicator() {
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "0.6rem",
-        padding: "0.55rem 0.9rem",
+        gap: "0.55rem",
+        padding: "0.55rem 0.85rem",
         borderRadius: "10px",
-        backgroundColor: "#f0f9ff",
-        border: "1px solid #bae6fd",
+        backgroundColor: "#f8fafc",
+        border: "1px solid #e2e8f0",
         maxWidth: "fit-content",
         marginBottom: "0.45rem",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
       }}
     >
-      <div
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          backgroundColor: "#0284c7",
-          animation: "pulse 1.2s infinite",
-        }}
-      />
-      <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0369a1" }}>
-        {step || "Checking CRM database..."}
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#0284c7", animation: "pulse 1s infinite" }} />
+        <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#0284c7", animation: "pulse 1s infinite", animationDelay: "200ms" }} />
+        <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#0284c7", animation: "pulse 1s infinite", animationDelay: "400ms" }} />
+      </div>
+      <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#0369a1" }}>
+        PulseCRM is thinking...
       </span>
     </div>
   );
@@ -336,6 +430,8 @@ export function VoiceCopilot() {
     chatHistory,
     selectedHcpId,
     selectedHcpName,
+    selectedHcpHospital,
+    selectedHcpCity,
     pendingConfirmation,
     pendingAction,
     readAloudEnabled,
@@ -720,51 +816,52 @@ export function VoiceCopilot() {
             </div>
           </div>
 
-          {/* Compact Context Indicator Bar */}
-          <div
-            style={{
-              padding: "0.35rem 1rem",
-              backgroundColor: "#f8fafc",
-              borderBottom: "1px solid #f1f5f9",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontSize: "0.72rem",
-              color: "#475569",
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <span style={{ fontWeight: 700, color: "#0f172a" }}>Context:</span>
-              {selectedHcpName ? (
-                <span style={{ color: "#0284c7", fontWeight: 600 }}>
-                  {selectedHcpName}
+          {/* Section 3: Compact Context Indicator Bar */}
+          {selectedHcpName && (
+            <div
+              style={{
+                padding: "0.4rem 1rem",
+                backgroundColor: "#f0f9ff",
+                borderBottom: "1px solid #e0f2fe",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontSize: "0.75rem",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", minWidth: 0, overflow: "hidden" }}>
+                <span style={{ fontSize: "0.7rem", color: "#0369a1", fontWeight: 600 }}>Currently talking about:</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontWeight: 700, color: "#0c4a6e", whiteSpace: "nowrap" }}>
+                  👩‍⚕️ {selectedHcpName}
                 </span>
-              ) : (
-                <span style={{ color: "#94a3b8" }}>None</span>
-              )}
-            </div>
-            {selectedHcpName && (
+                {selectedHcpHospital && (
+                  <span style={{ color: "#0284c7", fontSize: "0.72rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    · {selectedHcpHospital} {selectedHcpCity ? `(${selectedHcpCity})` : ""}
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={clearHcpContext}
                 title="Clear active doctor context"
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "#94a3b8",
+                  background: "#ffffff",
+                  border: "1px solid #bae6fd",
+                  color: "#0369a1",
                   cursor: "pointer",
-                  fontSize: "0.72rem",
+                  fontSize: "0.68rem",
                   fontWeight: 600,
-                  padding: "0.1rem 0.35rem",
+                  padding: "0.15rem 0.45rem",
                   borderRadius: "4px",
+                  flexShrink: 0,
                 }}
                 aria-label="Clear active doctor context"
               >
                 ✕ Clear
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Compact Dismissible Speech Warning Pill */}
           {!ttsNotificationDismissed && !isTeluguVoiceAvailable && (
@@ -868,11 +965,14 @@ export function VoiceCopilot() {
                   <BotIcon style={{ fontSize: "1.6rem", color: "#0284c7" }} />
                 </div>
 
-                <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", marginBottom: "0.25rem" }}>
-                  How can I assist your territory today?
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", marginBottom: "0.25rem" }}>
+                  Ask PulseCRM
                 </h2>
-                <p style={{ fontSize: "0.8rem", color: "#64748b", maxWidth: "420px", marginBottom: "1rem", lineHeight: 1.5 }}>
-                  Type or speak in English, Telugu, or mixed speech. Query doctor relationships, schedule meetings, or log field interactions.
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#0369a1", marginBottom: "0.4rem" }}>
+                  Good day 👋
+                </div>
+                <p style={{ fontSize: "0.8rem", color: "#64748b", maxWidth: "440px", marginBottom: "1.1rem", lineHeight: 1.5 }}>
+                  Tell me what happened in the field, or ask me anything about your doctors, meetings, products, or territory.
                 </p>
 
                 <div
@@ -884,32 +984,109 @@ export function VoiceCopilot() {
                     textAlign: "left",
                   }}
                 >
-                  {SUGGESTED_PROMPTS.map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => sendQuery(p.query, "text", (t, l, i) => { if (readAloudEnabled) handleSpeak(t, l, i); })}
-                      style={{
-                        padding: "0.55rem 0.75rem",
-                        borderRadius: "8px",
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.45rem",
-                        fontSize: "0.75rem",
-                        color: "#334155",
-                        cursor: "pointer",
-                        boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
-                        transition: "all 0.15s ease",
-                        minHeight: "44px",
-                      }}
-                      aria-label={p.label}
-                    >
-                      <span style={{ fontSize: "0.95rem" }}>{p.icon}</span>
-                      <span style={{ fontWeight: 500 }}>{p.label}</span>
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => sendQuery("I am meeting Dr Sharma today. What should I prepare before meeting him?", "text", (t, l, i) => { if (readAloudEnabled) handleSpeak(t, l, i); })}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      borderRadius: "8px",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.75rem",
+                      color: "#334155",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
+                      minHeight: "44px",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>💡</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>Prepare for a doctor visit</div>
+                      <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Pre-meeting brief & history</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => sendQuery("I met Dr Ananya Rao at KIMS today. We discussed CardioPress-50 and she requested clinical brochures.", "text", (t, l, i) => { if (readAloudEnabled) handleSpeak(t, l, i); })}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      borderRadius: "8px",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.75rem",
+                      color: "#334155",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
+                      minHeight: "44px",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>✍️</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>Log an interaction</div>
+                      <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Record notes & requests</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => sendQuery("Tell me about Dr Sharma", "text", (t, l, i) => { if (readAloudEnabled) handleSpeak(t, l, i); })}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      borderRadius: "8px",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.75rem",
+                      color: "#334155",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
+                      minHeight: "44px",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>👨‍⚕️</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>Find a doctor</div>
+                      <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Hospital & specialty profile</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => sendQuery("What is my schedule for today?", "text", (t, l, i) => { if (readAloudEnabled) handleSpeak(t, l, i); })}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      borderRadius: "8px",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.75rem",
+                      color: "#334155",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.03)",
+                      minHeight: "44px",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.1rem" }}>☀️</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>Plan my day</div>
+                      <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Today's agenda & tasks</div>
+                    </div>
+                  </button>
+                </div>
+
+                <div style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic" }}>
+                  Or just tell me what happened in your own words.
                 </div>
               </div>
             ) : (
@@ -1053,7 +1230,7 @@ export function VoiceCopilot() {
                 onChange={handleTextareaChange}
                 onKeyDown={handleKeyDown}
                 disabled={isBusy || isRecording}
-                placeholder="Ask about doctors, meetings, follow-ups, products, or your territory..."
+                placeholder="Ask anything about your doctors, meetings, follow-ups, or territory..."
                 style={{
                   flex: 1,
                   border: "none",
@@ -1065,7 +1242,7 @@ export function VoiceCopilot() {
                   color: "#0f172a",
                   maxHeight: "120px",
                   fontFamily: "inherit",
-                  padding: "0.2rem",
+                  padding: "0.3rem 0.2rem",
                 }}
                 aria-label="Ask PulseCRM message input"
               />
@@ -1076,8 +1253,8 @@ export function VoiceCopilot() {
                 disabled={isBusy}
                 title={isRecording ? "Stop recording" : "Record voice message"}
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 40,
                   borderRadius: "50%",
                   backgroundColor: isRecording ? "#dc2626" : "#ffffff",
                   color: isRecording ? "#ffffff" : "#0284c7",
@@ -1087,10 +1264,12 @@ export function VoiceCopilot() {
                   justifyContent: "center",
                   cursor: isBusy ? "not-allowed" : "pointer",
                   flexShrink: 0,
+                  minHeight: "44px",
+                  minWidth: "44px",
                 }}
                 aria-label={isRecording ? "Stop recording" : "Record voice message"}
               >
-                {isRecording ? <StopIcon style={{ fontSize: "1rem" }} /> : <MicIcon style={{ fontSize: "1rem" }} />}
+                {isRecording ? <StopIcon style={{ fontSize: "1.1rem" }} /> : <MicIcon style={{ fontSize: "1.1rem" }} />}
               </button>
 
               <button
@@ -1099,8 +1278,8 @@ export function VoiceCopilot() {
                 disabled={!inputText.trim() || isBusy || isRecording}
                 title="Send message (Enter)"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 40,
                   borderRadius: "50%",
                   backgroundColor: inputText.trim() && !isBusy && !isRecording ? "#0284c7" : "#e2e8f0",
                   color: inputText.trim() && !isBusy && !isRecording ? "#ffffff" : "#94a3b8",
@@ -1108,8 +1287,10 @@ export function VoiceCopilot() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  cursor: inputText.trim() && !isBusy && !isRecording ? "pointer" : "default",
+                  cursor: !inputText.trim() || isBusy || isRecording ? "not-allowed" : "pointer",
                   flexShrink: 0,
+                  minHeight: "44px",
+                  minWidth: "44px",
                 }}
                 aria-label="Send message"
               >

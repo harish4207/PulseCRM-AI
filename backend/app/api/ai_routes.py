@@ -128,6 +128,7 @@ class CopilotChatRequest(BaseModel):
     selected_hcp_name: Optional[str] = None
     pending_confirmation: bool = False
     pending_action: Optional[Dict[str, Any]] = None
+    preferred_provider: Optional[str] = None
 
 
 def _process_copilot_query(
@@ -154,6 +155,7 @@ def _process_copilot_query(
             current_hcp_name=req.selected_hcp_name,
             pending_confirmation=req.pending_confirmation,
             pending_action=req.pending_action,
+            preferred_provider=req.preferred_provider,
         )
     except Exception as e:
         raise HTTPException(

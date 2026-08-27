@@ -27,7 +27,9 @@ TELUGU_POSTPOSITIONS = [
 
 STOP_TOKENS_SET = set(TELUGU_POSTPOSITIONS + [
     "dr", "dr.", "doctor", "the", "a", "an", "tell", "me", "about", "who", "is",
-    "when", "did", "i", "we", "last", "meet", "scheduled", "with", "at", "for"
+    "when", "did", "i", "we", "last", "meet", "scheduled", "with", "at", "for",
+    "today", "tomorrow", "yesterday", "tonight", "new", "just", "met", "now",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
 ])
 
 
@@ -57,18 +59,25 @@ def normalize_text(text: str) -> str:
 
 def extract_potential_names(transcript: str) -> List[str]:
     """Extract candidate name phrases from transcript after stripping noise tokens."""
+    from app.ai.normalizer import is_valid_person_name
+
     norm = normalize_text(transcript)
     words = norm.split()
 
-    filtered = [w for w in words if w not in STOP_TOKENS_SET]
+    filtered = [w for w in words if w not in STOP_TOKENS_SET and is_valid_person_name(w)]
     candidates = []
 
     if filtered:
-        candidates.append(" ".join(filtered))
+        cand_full = " ".join(filtered)
+        if is_valid_person_name(cand_full):
+            candidates.append(cand_full)
         if len(filtered) >= 2:
-            candidates.append(f"{filtered[0]} {filtered[1]}")
-        candidates.append(filtered[0])
-        if len(filtered) >= 2:
+            cand_pair = f"{filtered[0]} {filtered[1]}"
+            if is_valid_person_name(cand_pair):
+                candidates.append(cand_pair)
+        if is_valid_person_name(filtered[0]):
+            candidates.append(filtered[0])
+        if len(filtered) >= 2 and is_valid_person_name(filtered[1]):
             candidates.append(filtered[1])
 
     patterns = [
@@ -80,8 +89,8 @@ def extract_potential_names(transcript: str) -> List[str]:
         m = re.search(pat, transcript, re.IGNORECASE)
         if m:
             extracted = m.group(1).strip()
-            clean_ex = " ".join([w for w in extracted.split() if w.lower() not in STOP_TOKENS_SET])
-            if clean_ex and clean_ex not in candidates:
+            clean_ex = " ".join([w for w in extracted.split() if w.lower() not in STOP_TOKENS_SET and is_valid_person_name(w)])
+            if clean_ex and clean_ex not in candidates and is_valid_person_name(clean_ex):
                 candidates.insert(0, clean_ex)
 
     return candidates
@@ -113,13 +122,19 @@ def calculate_similarity(s1: str, s2: str) -> float:
     if s1_clean == s2_clean:
         return 1.0
 
+    COMMON_INDIAN_SURNAMES = {"reddy", "kumar", "rao", "sharma", "patel", "singh", "gupta", "varma", "chowdary", "naidu"}
+
     s1_tokens = set(s1_clean.split())
     s2_tokens = set(s2_clean.split())
     if s1_tokens == s2_tokens:
         return 1.0
     if s1_tokens and s1_tokens.issubset(s2_tokens):
+        if len(s1_tokens) == 1 and list(s1_tokens)[0] in COMMON_INDIAN_SURNAMES:
+            return 0.50
         return 0.70 + 0.18 * (len(s1_tokens) / max(len(s2_tokens), 1))
     if s2_tokens and s2_tokens.issubset(s1_tokens):
+        if len(s2_tokens) == 1 and list(s2_tokens)[0] in COMMON_INDIAN_SURNAMES:
+            return 0.50
         return 0.70 + 0.18 * (len(s2_tokens) / max(len(s1_tokens), 1))
 
     seq_ratio = difflib.SequenceMatcher(None, s1_clean, s2_clean).ratio()

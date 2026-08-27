@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.config.settings import settings
 from app.ai.agent import llm
-from app.ai.normalizer import normalize_transcript, extract_clean_search_tokens, clean_doctor_name
+from app.ai.normalizer import normalize_transcript, extract_clean_search_tokens, clean_doctor_name, is_valid_person_name
 from app.ai.meeting_extractor import parse_date_expression, extract_request_action
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,10 @@ INTENT_UNKNOWN = "UNKNOWN"
 
 TELUGU_UNICODE_RANGE = re.compile(r"[\u0C00-\u0C7F]")
 TELUGU_LATIN_KEYWORDS = re.compile(
-    r"\b(eppudu|kalisanu|gurinchi|cheppu|matladaru|matladam|aayana|avaru|chivari|"
+    r"\b(eppudu|kalisanu|gurinchi|cheppu|matladaru|matladam|aayana|aavida|avaru|chivari|"
     r"malli|rappudu|vachhe|em chepparu|em matladaru|kanipinchadu|naaku|meeru|"
-    r"kalisina|ivala|ayindi|chesam|cheyyi|tho|ki|ni|ga|lo|doctor|hospital|"
-    r"log cheyyi|record cheyyi|follow-up|schedule|visit|recent ga|evarini|anni|"
+    r"kalisina|ivala|ayindi|chesam|cheyyi|tho|ki|ni|ga|lo|"
+    r"log cheyyi|record cheyyi|recent ga|evarini|anni|"
     r"avunu|vaddu|kaadu|evaritho|unna|pett|repu|somavaram|ippude|adigindi|pampali|kalavali|kalustha)\b",
     re.IGNORECASE,
 )
@@ -64,6 +64,7 @@ class UnderstandingResult(BaseModel):
     intent: str = INTENT_UNKNOWN
     doctor_name: Optional[str] = None
     hospital: Optional[str] = None
+    city: Optional[str] = None
     specialization: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -87,6 +88,7 @@ class UnderstandingResult(BaseModel):
     actions: List[str] = []
     confidence: float = 1.0
     corrections: Dict[str, Any] = {}
+    conversational_reply: Optional[str] = None
 
 
 def detect_language(text: str) -> str:
@@ -116,55 +118,44 @@ def fallback_rule_understanding(
 
     res = UnderstandingResult(language=lang)
 
-    # 1. Check Pending Confirmation state corrections & decisions
-    if pending_confirmation:
-        is_schedule_pending = (
-            pending_action.get("type") == "SCHEDULE_MEETING"
-            or "CREATE_MEETING" in pending_action.get("actions", [])
-            or "CREATE_MEETING" in pending_action.get("planned_actions", [])
-        )
-        if is_schedule_pending:
-            if any(k in lower for k in [
-                "4 pm", "4:00 pm", "4:00", "3 pm", "11 am", "10 am", "2 pm", "5 pm", "marchu", "ki marchu", "make it", "time to", "change time"
-            ]) and not any(cw in lower for cw in ["confirm", "avunu", "save", "cancel", "vaddu"]):
-                from app.ai.meeting_extractor import parse_time_expression
-                t_parsed = parse_time_expression(norm)
-                if t_parsed:
-                    res.intent = INTENT_CORRECT_PENDING_ACTION
-                    res.corrections["change_time"] = t_parsed[2]
-                    res.meeting_time_display = t_parsed[2]
-                    return res
+    # 1. Check Pending Action / Confirmation state corrections & decisions
+    has_pending = bool(pending_action) or pending_confirmation
 
-            if any(k in lower for k in [
-                "remind me", "reminder", "gurthu", "alert", "no reminder", "don't remind", "remove reminder"
-            ]) and not any(cw in lower for cw in ["confirm", "avunu", "save", "cancel", "vaddu"]):
-                from app.ai.meeting_extractor import extract_reminder_preference
-                if any(k in lower for k in ["no reminder", "remove reminder", "reminder vaddu", "don't remind"]):
-                    res.intent = INTENT_CORRECT_PENDING_ACTION
-                    res.corrections["remove_reminder"] = True
-                    return res
-                rem = extract_reminder_preference(norm)
-                if rem:
-                    res.intent = INTENT_CORRECT_PENDING_ACTION
-                    res.corrections["change_reminder"] = rem[1]
-                    res.reminder_minutes = rem[0]
-                    res.reminder_display = rem[1]
-                    return res
-
+    if has_pending:
+        # Check for follow-up removal first (e.g. "No follow-up.", "There was no follow-up scheduled.")
         if any(k in lower for k in [
             "no follow up", "no follow-up", "no followup", "remove follow", "remove the follow",
-            "no follow-up scheduled", "there was no follow-up", "there was no follow up",
+            "no follow-up scheduled", "no followup scheduled", "there was no follow-up", "there was no follow up", "there was no followup"
         ]):
             res.intent = INTENT_CORRECT_PENDING_ACTION
             res.corrections["remove_follow_up"] = True
             res.actions = ["CREATE_INTERACTION"]
             return res
 
+        # Check for explicit multi-turn corrections (e.g. "Change the doctor to Dr Ananya.", "Actually change the follow-up to October 1.", "Follow-up date change to November 5.")
         if any(k in lower for k in [
             "change", "actually", "the product was", "instead of", "reschedule", "not a brochure",
-            "not apollo", "not care", "she asked for", "he asked for", "hospital is", "doctor to", "make it", "make that"
+            "not apollo", "not care", "she asked for", "he asked for", "hospital is", "doctor to", "make it", "make that",
+            "follow-up date change", "change the follow-up", "change the doctor", "change doctor"
         ]):
             res.intent = INTENT_CORRECT_PENDING_ACTION
+            from app.ai.meeting_extractor import parse_time_expression, extract_reminder_preference
+            t_parsed = parse_time_expression(norm)
+            if t_parsed:
+                res.corrections["change_time"] = t_parsed[2]
+                res.meeting_time_display = t_parsed[2]
+
+            if any(k in lower for k in ["no reminder", "remove reminder", "reminder vaddu", "don't remind", "dont remind", "i don't need the reminder"]):
+                res.corrections["remove_reminder"] = True
+                res.reminder_minutes = 0
+                res.reminder_display = "No reminder"
+            else:
+                rem = extract_reminder_preference(norm)
+                if rem:
+                    res.corrections["change_reminder"] = rem[1]
+                    res.reminder_minutes = rem[0]
+                    res.reminder_display = rem[1]
+
             dt_parsed = parse_date_expression(norm)
             if dt_parsed:
                 res.corrections["change_follow_up"] = dt_parsed[1]
@@ -172,11 +163,12 @@ def fallback_rule_understanding(
                 res.follow_up_display = dt_parsed[1]
                 res.follow_up_date = dt_parsed[0].isoformat()
 
-            doc_m = re.search(r"(?:actually\s+(?:it\s+was|the\s+doctor\s+was|i\s+meant)|doctor\s+was|doctor\s+to)\s+(?:dr\.?\s+)?([A-Za-z\s]+)", norm, re.IGNORECASE)
+            doc_m = re.search(r"(?:actually\s+(?:it\s+was|the\s+doctor\s+was|i\s+meant)|doctor\s+was|(?:change\s+(?:the\s+)?doctor\s+to)|doctor\s+to)\s+(?:dr\.?\s+)?([A-Za-z\s]+)", norm, re.IGNORECASE)
             if doc_m:
                 d_name = doc_m.group(1).strip()
-                res.corrections["change_doctor"] = d_name
-                res.doctor_name = d_name
+                if is_valid_person_name(d_name):
+                    res.corrections["change_doctor"] = clean_doctor_name(d_name)
+                    res.doctor_name = clean_doctor_name(d_name)
 
             prod_m = re.search(r"\b(CardioPress(?:-(?:50|75|100))?|Cancer Medicine|AmloPulse|GlycoCare|NeuroCalm|LipidGuard|RespiClear)\b", norm, re.IGNORECASE)
             if prod_m:
@@ -190,14 +182,130 @@ def fallback_rule_understanding(
 
             return res
 
-        confirm_words = ["avunu", "yes", "confirm", "okay", "ok", "save it", "do it", "create it", "proceed", "sare", "schedule it", "confirm & schedule", "అవును", "సరే"]
+        cancel_words = ["cancel", "vaddu", "don't save", "dont save", "don't schedule", "dont schedule", "don't do it", "dont do it", "stop", "వద్దు", "రద్దు", "vaddu, cancel cheyyi", "no, cancel it", "stop, don't do it"]
+        is_exact_no = lower in ["no", "no.", "no!"] or (lower.startswith("no,") and "follow" not in lower)
+        if is_exact_no or any(lower == cw or lower.startswith(cw) or f" {cw} " in f" {lower} " for cw in cancel_words):
+            res.intent = INTENT_CANCEL_ACTION
+            return res
+
+        confirm_words = ["avunu", "yes", "confirm", "okay", "ok", "save it", "do it", "create it", "proceed", "sare", "schedule it", "confirm & schedule", "అవును", "సరే", "save everything", "okay save everything", "save all", "save.", "save", "confirm & save"]
         if any(lower == cw or lower.startswith(cw) or f" {cw} " in f" {lower} " for cw in confirm_words):
             res.intent = INTENT_CONFIRM_ACTION
             return res
 
-        cancel_words = ["no", "cancel", "vaddu", "don't save", "dont save", "don't schedule", "don't do it", "stop", "వద్దు", "రద్దు", "vaddu, cancel cheyyi", "no, cancel it"]
-        if any(lower == cw or lower.startswith(cw) or f" {cw} " in f" {lower} " for cw in cancel_words):
-            res.intent = INTENT_CANCEL_ACTION
+        # Check for reminder modifications
+        if any(k in lower for k in ["no reminder", "remove reminder", "reminder vaddu", "don't remind", "dont remind", "i don't need the reminder", "i dont need the reminder"]):
+            res.intent = INTENT_CORRECT_PENDING_ACTION
+            res.corrections["remove_reminder"] = True
+            res.reminder_minutes = 0
+            res.reminder_display = "No reminder"
+            return res
+        elif any(k in lower for k in ["remind me", "reminder", "gurthu", "alert", "one hour", "1 hour", "30 min", "minutes before"]):
+            from app.ai.meeting_extractor import extract_reminder_preference
+            rem = extract_reminder_preference(norm)
+            if rem:
+                res.intent = INTENT_CORRECT_PENDING_ACTION
+                res.corrections["change_reminder"] = rem[1]
+                res.reminder_minutes = rem[0]
+                res.reminder_display = rem[1]
+                return res
+
+        # Check for time modifications (e.g. "Actually make it 4", "around four", "4:30", "at 4", "time to 4")
+        if any(k in lower for k in ["make it", "make that", "change time", "time to", "actually", "around", "at 4", "at 3", "4 pm", "3 pm", "4:30", "4:", "3:", "pm", "am", "marchu"]):
+            from app.ai.meeting_extractor import parse_time_expression
+            t_parsed = parse_time_expression(norm)
+            if t_parsed:
+                res.intent = INTENT_CORRECT_PENDING_ACTION
+                res.corrections["change_time"] = t_parsed[2]
+                res.meeting_time_display = t_parsed[2]
+                return res
+
+        # Check for date modifications (e.g. "Actually Tuesday instead", "Next Wednesday", "Not tomorrow")
+        if any(k in lower for k in ["instead", "next wednesday", "next tuesday", "next friday", "next monday", "wednesday", "tuesday", "friday", "monday", "repu", "tomorrow"]):
+            dt_parsed = parse_date_expression(norm)
+            if dt_parsed:
+                res.intent = INTENT_CORRECT_PENDING_ACTION
+                res.corrections["change_date"] = dt_parsed[1]
+                res.corrections["change_follow_up"] = dt_parsed[1]
+                res.follow_up_display = dt_parsed[1]
+                res.follow_up_date = dt_parsed[0].isoformat()
+                return res
+
+        # Check for multi-attribute additions during an in-progress draft
+        has_field_update = False
+
+        # Doctor Name
+        intro_m = re.search(r"\b(?:her|his|their|the|aayana|aavida|ayana|ame)?\s*(?:name|peru|పేరు)\s+(?:is|=|gaaru|garu|గారు)?\s*(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
+        called_m = re.search(r"\b(?:she's|shes|he's|hes|called|named|actually)\s+(?:called\s+|named\s+)?(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
+        d_cand = (intro_m.group(1).strip() if intro_m else None) or (called_m.group(1).strip() if called_m else None)
+        if d_cand and is_valid_person_name(d_cand):
+            res.doctor_name = clean_doctor_name(d_cand)
+            res.corrections["change_doctor"] = res.doctor_name
+            has_field_update = True
+
+        # Specialization
+        spec_m = re.search(r"\b(cardiologist|neurologist|orthopedic|oncologist|diabetologist|pediatrician|dermatologist|physician|surgeon)\b", norm, re.IGNORECASE)
+        if spec_m:
+            res.specialization = spec_m.group(1).capitalize()
+            res.corrections["change_specialization"] = res.specialization
+            has_field_update = True
+
+        # Hospital
+        hosp_m = re.search(r"\b(?:at|in|from)?\s*([A-Za-z0-9\s\-]*?(?:Hospital|Clinic|Health Center|Care|KIMS|Apollo|Manipal|Sunshine)(?:\s+(?:Hospital|Clinic|Hyderabad|Visakhapatnam|Vizag|Vijayawada|Bangalore|Chennai|Mumbai|Delhi))?)\b", norm, re.IGNORECASE)
+        if hosp_m and len(hosp_m.group(1).strip()) >= 3:
+            h_raw = hosp_m.group(1).strip()
+            h_clean = re.sub(r"^(?:(?:she's|shes|he's|hes|i'm|im|she|he|a|the|is|at|in|from|works\s+at)\s+)+", "", h_raw, flags=re.IGNORECASE).strip()
+            h_clean = re.sub(r"^(?:(?:cardiologist|neurologist|orthopedic|oncologist|physician|doctor|dr\.?)\s+(?:at|in|from)?\s*)+", "", h_clean, flags=re.IGNORECASE).strip()
+            if h_clean and len(h_clean) >= 3:
+                res.hospital = h_clean
+                res.corrections["change_hospital"] = h_clean
+                has_field_update = True
+
+        # City
+        city_m = re.search(r"\b(?:in|at)\s+(Hyderabad|Visakhapatnam|Vizag|Vijayawada|Bangalore|Chennai|Mumbai|Delhi|Guntur|Tirupati|Kurnool)\b", norm, re.IGNORECASE)
+        if city_m:
+            res.city = city_m.group(1).capitalize()
+            res.corrections["change_city"] = res.city
+            has_field_update = True
+
+        # Phone
+        phone_m = re.search(r"\b(?:mobile|phone|number|contact)?(?:\s+is)?\s*[:\s]?\s*(\d{7,15})\b", norm, re.IGNORECASE)
+        if phone_m:
+            res.phone = phone_m.group(1)
+            res.corrections["change_phone"] = res.phone
+            has_field_update = True
+
+        # Product
+        known_prods = ["CardioPress-50", "CardioPress-75", "CardioPress-100", "Cancer Medicine", "AmloPulse", "GlycoCare", "NeuroCalm", "LipidGuard", "RespiClear"]
+        for p in known_prods:
+            if p.lower() in lower:
+                res.product = p
+                res.corrections["change_product"] = p
+                has_field_update = True
+                break
+
+        # Doctor Request
+        req_val, _ = extract_request_action(norm)
+        if req_val:
+            res.doctor_request = req_val
+            res.corrections["change_request"] = req_val
+            has_field_update = True
+
+        # Meeting / Schedule intent in draft
+        if any(k in lower for k in ["let's meet", "lets meet", "let us meet", "meet next", "schedule a meeting", "schedule meeting", "see her", "see him", "kalavali"]):
+            from app.ai.meeting_extractor import parse_time_expression
+            res.intent = INTENT_SCHEDULE_MEETING
+            t_p = parse_time_expression(norm)
+            if t_p:
+                res.meeting_time_display = t_p[2]
+            d_p = parse_date_expression(norm)
+            if d_p:
+                res.follow_up_display = d_p[1]
+                res.follow_up_date = d_p[0].isoformat()
+            return res
+
+        if has_field_update:
+            res.intent = INTENT_CORRECT_PENDING_ACTION
             return res
 
     # 2. Check Context Override (e.g. "Rajesh kaadu Sharma doctor", "Not Rajesh, I meant Dr Sharma")
@@ -240,10 +348,10 @@ def fallback_rule_understanding(
         res.intent = INTENT_GET_PRE_MEETING_INTELLIGENCE
         doc_m = re.search(r"(?:meeting|with|about|on|for|dr\.?)\s+(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
         if doc_m:
-            clean_d = re.sub(r"\b(meeting|with|today|dr|doctor|డాక్టర్|గారు|before|what|should|i|know|about|on|for|prep|tho|details|cheppu)\b", "", doc_m.group(1), flags=re.IGNORECASE).strip()
+            clean_d = re.sub(r"\b(meeting|with|today|dr|doctor|డాక్టర్|గారు|before|what|should|i|know|about|on|for|prep|tho|details|cheppu|him|her|he|she|aayana|aavida)\b", "", doc_m.group(1), flags=re.IGNORECASE).strip()
             if clean_d:
                 res.doctor_name = clean_d
-        if not res.doctor_name and current_hcp_name:
+        if (not res.doctor_name or any(p in lower for p in ["him", "her", "he", "she", "aayana", "aavida"])) and current_hcp_name:
             res.is_anaphoric = True
             res.doctor_name = current_hcp_name
         return res
@@ -297,15 +405,15 @@ def fallback_rule_understanding(
         doc_m_after_verb = re.search(r"(?:meet|with|doctor|dr\.?)\s+(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
 
         if doc_m_before_post:
-            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am)\b", "", doc_m_before_post.group(1), flags=re.IGNORECASE).strip()
+            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_before_post.group(1), flags=re.IGNORECASE).strip()
             if cand and len(cand) >= 2:
                 res.doctor_name = cand
         elif doc_m_after_verb:
-            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to)\b", "", doc_m_after_verb.group(1), flags=re.IGNORECASE).strip()
+            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_after_verb.group(1), flags=re.IGNORECASE).strip()
             if cand and len(cand) >= 2:
                 res.doctor_name = cand
 
-        if not res.doctor_name and current_hcp_name:
+        if (not res.doctor_name or any(p in lower for p in ["him", "her", "he", "she", "aayana", "aavida"])) and current_hcp_name:
             res.is_anaphoric = True
             res.doctor_name = current_hcp_name
         return res
@@ -348,8 +456,8 @@ def fallback_rule_understanding(
         any(k in lower for k in [
             "evaritho matladam", "which doctor", "who did i discuss", "evaritho discuss", "who did i present",
             "interested doctor", "which physicians", "discussion records", "adherence evaritho", "doctors tho meeting ayindi",
-            "what did we discuss", "what did i discuss"
-        ]) or (has_known_prod and is_query)
+            "what did we discuss", "what did i discuss", "who did i talk", "who did i meet about", "discuss"
+        ]) or (has_known_prod and (is_query or any(w in lower for w in ["who", "which", "discuss", "interested", "patients", "evaritho"])))
     ) and not is_explicit_save
 
     if is_prod_query:
@@ -366,15 +474,19 @@ def fallback_rule_understanding(
             res.doctor_name = current_hcp_name
             return res
 
-    # C. Doctor Requests / Commitments Query (e.g. "What did he ask for?", "What did Dr Rajesh ask for?")
-    if any(k in lower for k in ["what did he ask", "what did she ask", "what did they ask", "em adigaru", "em adigindi", "ask for"]):
+    # C. Doctor Interactions / Requests / Commitments Query
+    if any(k in lower for k in [
+        "what did he ask", "what did she ask", "what did they ask", "em adigaru", "em adigindi", "ask for",
+        "last interaction", "last meeting", "interacted with", "met with", "what was my last",
+        "previous interaction", "previous meeting", "what did we discuss", "what did i discuss",
+    ]):
         res.intent = INTENT_GET_HCP_INTERACTIONS
-        if any(p in lower for p in ["he", "she", "him", "her", "aayana", "aavida"]) or current_hcp_name:
+        if any(p in lower for p in ["he", "she", "him", "her", "aayana", "aavida", "ayana", "ame", "vaallu"]) or current_hcp_name:
             res.is_anaphoric = True
             res.doctor_name = current_hcp_name
-        doc_m = re.search(r"(?:dr\.?\s+)?([A-Za-z]+)", norm, re.IGNORECASE)
-        if doc_m and doc_m.group(1).lower() not in ["what", "did", "he", "she", "ask", "for"]:
-            res.doctor_name = doc_m.group(1)
+        doc_m = re.search(r"(?:dr\.?\s+)?([A-Za-z]+(?:\s+[A-Za-z]+)?)", norm, re.IGNORECASE)
+        if doc_m and is_valid_person_name(doc_m.group(1)):
+            res.doctor_name = clean_doctor_name(doc_m.group(1))
         return res
 
     # D. When am I meeting him Query / Schedule query
@@ -413,7 +525,7 @@ def fallback_rule_understanding(
 
     # 9. New HCP creation / Meeting Capture Commands
     is_new_hcp = any(k in lower for k in [
-        "new doctor", "new hcp", "new physician", "create her in", "create him in", "add her", "add him",
+        "new doctor", "new hcp", "new physician", "someone new", "create her in", "create him in", "add her", "add him",
         "add new doctor", "add new hcp", "kotha doctor", "register new doctor", "create new doctor", "create new hcp"
     ])
     phone_m = re.search(r"\b(?:mobile|phone|number|contact)(?:\s+is)?\s*[:\s]?\s*(\d{7,15})\b", norm, re.IGNORECASE)
@@ -430,7 +542,8 @@ def fallback_rule_understanding(
     is_meeting_capture = is_new_hcp or any(k in lower for k in [
         "just met", "i met", "had a meeting", "ippude kalisanu", "kalisanu", "meeting ayindi",
         "save this meeting", "save this", "save it", "save cheyyi", "log this meeting", "log cheyyi",
-        "logged meeting", "record meeting", "log interaction", "met dr", "and save", "save.", "save "
+        "logged meeting", "record meeting", "log interaction", "met dr", "and save", "save.", "save ",
+        "she's called", "shes called", "her name is", "his name is", "we talked about", "she wants"
     ])
 
     if is_meeting_capture:
@@ -440,20 +553,49 @@ def fallback_rule_understanding(
         res.email = email_val
         res.specialization = spec_val
 
-        # Doctor Name extraction
+        if not res.specialization:
+            spec_match = re.search(r"\b(cardiologist|neurologist|orthopedic|oncologist|diabetologist|pediatrician|dermatologist|physician)\b", norm, re.IGNORECASE)
+            if spec_match:
+                res.specialization = spec_match.group(1).capitalize()
+
+        # Doctor Name extraction with strict person validation
+        cand_name = None
         name_m = re.search(r"\b(?:new doctor|new hcp|doctor|dr\.?|physician|hcp)\s+(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)\b", norm, re.IGNORECASE)
         if name_m:
-            cand_name = name_m.group(1).strip()
-            cand_name = re.sub(r"\b(?:and|at|with|in|whose|his|her|phone|specialization|is|from|schedule|meeting)\b.*$", "", cand_name, flags=re.IGNORECASE).strip()
-            if cand_name:
-                res.doctor_name = clean_doctor_name(cand_name) or cand_name
-        elif current_hcp_name and any(p in lower for p in ["him", "her", "she", "he", "aayana"]):
+            cand = name_m.group(1).strip()
+            cand = re.sub(r"\b(?:and|at|with|in|whose|his|her|phone|specialization|is|from|schedule|meeting|today|tomorrow|yesterday|ni|tho|ki|ga|lo|kalisanu|matladanu|adigindi|adigaru)\b.*$", "", cand, flags=re.IGNORECASE).strip()
+            if cand and is_valid_person_name(cand):
+                cand_name = cand
+
+        intro_m = re.search(r"\b(?:her|his|their|the|aayana|aavida|ayana|ame)?\s*(?:name|peru|పేరు)\s+(?:is|=|gaaru|garu|గారు)?\s*(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
+        if not cand_name and intro_m:
+            cand = intro_m.group(1).strip()
+            cand = re.sub(r"\b(?:and|at|with|in|whose|she|he|phone|specialization|is|from|ni|tho|ki|ga|lo)\b.*$", "", cand, flags=re.IGNORECASE).strip()
+            if cand and is_valid_person_name(cand):
+                cand_name = cand
+
+        called_m = re.search(r"\b(?:she's|shes|he's|hes|called|named|actually|it was)\s+(?:called\s+|named\s+)?(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
+        if not cand_name and called_m:
+            cand = called_m.group(1).strip()
+            cand = re.sub(r"\b(?:and|at|with|in|whose|she|he|phone|specialization|is|from|today|tomorrow|yesterday|ni|tho|ki|ga|lo|kalisanu|matladanu|adigindi|adigaru)\b.*$", "", cand, flags=re.IGNORECASE).strip()
+            if cand and is_valid_person_name(cand):
+                cand_name = cand
+
+        if cand_name and is_valid_person_name(cand_name):
+            res.doctor_name = clean_doctor_name(cand_name)
+        elif current_hcp_name and any(p in lower for p in ["him", "her", "she", "he", "aayana", "aavida"]):
             res.is_anaphoric = True
             res.doctor_name = current_hcp_name
+        else:
+            res.doctor_name = None
 
-        hosp_m = re.search(r"\b(?:at|in)\s+([A-Za-z\s]+(?:Hospital|Clinic|Health Center|Care|KIMS|Apollo|Manipal|Sunshine))\b", norm, re.IGNORECASE)
+        hosp_m = re.search(r"\b(?:at|in|from)\s+([A-Za-z0-9\s\-]*?(?:Hospital|Clinic|Health Center|Care|KIMS|Apollo|Manipal|Sunshine)(?:\s+(?:Hospital|Clinic|Hyderabad|Visakhapatnam|Vizag|Vijayawada|Bangalore|Chennai|Mumbai|Delhi))?)\b", norm, re.IGNORECASE)
         if hosp_m:
             res.hospital = hosp_m.group(1).strip()
+
+        city_m = re.search(r"\b(?:in|at)\s+(Hyderabad|Visakhapatnam|Vizag|Vijayawada|Bangalore|Chennai|Mumbai|Delhi|Guntur|Tirupati|Kurnool)\b", norm, re.IGNORECASE)
+        if city_m:
+            res.city = city_m.group(1).capitalize()
 
         for p in known_prods:
             if p.lower() in lower:
@@ -482,11 +624,11 @@ def fallback_rule_understanding(
     # 10. Single HCP follow-up Query
     if any(k in lower for k in ["next follow-up", "next followup", "next follow up", "next meeting", "malli eppudu", "follow-up eppudu", "follow-up date", "follow app"]):
         res.intent = INTENT_GET_HCP_FOLLOWUPS
-        if any(p in lower for p in ["him", "her", "she", "he", "aayana"]):
+        if any(p in lower for p in ["him", "her", "she", "he", "aayana", "aavida"]):
             res.is_anaphoric = True
             res.doctor_name = current_hcp_name
         name_m = re.search(r"\b(?:dr\.?\s+)?([A-Za-z]+)\b", norm, re.IGNORECASE)
-        if name_m and name_m.group(1).lower() not in ["next", "follow", "up", "meeting", "when", "her", "him", "date", "for"]:
+        if name_m and name_m.group(1).lower() not in ["next", "follow", "up", "meeting", "when", "her", "him", "he", "she", "aayana", "aavida", "eppudu", "date", "for"]:
             res.doctor_name = name_m.group(1)
         elif current_hcp_name:
             res.is_anaphoric = True
@@ -540,10 +682,161 @@ def fallback_rule_understanding(
     return res
 
 
+def llm_reasoning_understanding(
+    transcript: str,
+    context: Dict[str, Any],
+    history: Optional[List[Any]] = None,
+) -> Optional[UnderstandingResult]:
+    """
+    True LLM semantic reasoning and multi-turn slot extraction using Groq.
+    """
+    if not settings.GROQ_API_KEY or len(settings.GROQ_API_KEY) < 10:
+        return None
+
+    try:
+        from groq import Groq
+        groq_client = Groq(api_key=settings.GROQ_API_KEY, timeout=4.0)
+
+        ctx_summary = {
+            "current_hcp_name": context.get("current_hcp_name"),
+            "current_hospital": context.get("current_hospital"),
+            "pending_confirmation": context.get("pending_confirmation", False),
+            "pending_action": context.get("pending_action"),
+        }
+
+        hist_str = ""
+        if history:
+            hist_items = []
+            for m in history[-6:]:
+                role = getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else "user")
+                content = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else str(m))
+                hist_items.append(f"{role.capitalize()}: {content}")
+            hist_str = "\n".join(hist_items)
+
+        sys_prompt = (
+            "You are the intelligent reasoning core of Ask PulseCRM, an AI copilot for pharmaceutical sales reps in India.\n"
+            "Analyze the user's message in the context of the conversation and evolving CRM state.\n"
+            "Supported languages: English, Telugu (Telugu script or Latin transliteration), and mixed code-switching.\n\n"
+            "Return a JSON object with these fields:\n"
+            "- language: 'en' | 'te' | 'mixed'\n"
+            "- intent: 'CAPTURE_MEETING' | 'SCHEDULE_MEETING' | 'CREATE_FOLLOWUP' | 'CONFIRM_ACTION' | 'CANCEL_ACTION' | 'CORRECT_PENDING_ACTION' | 'GET_HCP_DETAILS' | 'SEARCH_HCP' | 'GET_HCP_INTERACTIONS' | 'GET_HCP_FOLLOWUPS' | 'GET_ALL_FOLLOWUPS' | 'GET_RECENT_INTERACTIONS' | 'GET_PRODUCT_DISCUSSIONS' | 'GET_HOSPITAL_DETAILS' | 'GET_CRM_BRIEF' | 'GET_PRE_MEETING_INTELLIGENCE' | 'GET_CRM_ANALYTICS' | 'GET_NEXT_ACTION' | 'GENERAL_CRM_QUERY'\n"
+            "- doctor_name: Real person name only (e.g. 'Dr. Ananya Rao'). NEVER 'today', 'tomorrow', 'yesterday', verbs, or temporal words.\n"
+            "- hospital: Hospital or clinic name (e.g. 'KIMS Hospital') or null\n"
+            "- city: City name (e.g. 'Hyderabad') or null\n"
+            "- specialization: Medical specialty (e.g. 'Cardiologist') or null\n"
+            "- phone: Phone number or null\n"
+            "- email: Email or null\n"
+            "- product: Pharma product name or null\n"
+            "- doctor_request: Samples or brochure requested or null\n"
+            "- follow_up_display: Follow-up date string or null\n"
+            "- meeting_time_display: Meeting time string or null\n"
+            "- reminder_display: Reminder string or null\n"
+            "- reminder_minutes: integer offset in minutes or null\n"
+            "- is_new_hcp: boolean\n"
+            "- is_anaphoric: boolean (true if referencing current doctor via him/her/aayana/aavida)\n"
+            "- corrections: object with modified slots if correcting a pending draft\n"
+            "- conversational_reply: Direct, helpful, grounded assistant answer in the appropriate language (Telugu/English) if answering a question or general conversation.\n\n"
+            "CRITICAL:\n"
+            "1. Temporal words like 'today', 'tomorrow' must NEVER be doctor_name.\n"
+            "2. If user mentions meeting a doctor but no name is provided, leave doctor_name as null.\n"
+        )
+
+        user_content = f"Conversation History:\n{hist_str}\n\nCurrent CRM Context:\n{json.dumps(ctx_summary)}\n\nLatest User Message:\n\"{transcript}\""
+
+        chat_completion = groq_client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+
+        raw_json = chat_completion.choices[0].message.content
+        data = json.loads(raw_json)
+
+        res = UnderstandingResult(
+            language=data.get("language") or detect_language(transcript),
+            intent=data.get("intent") or INTENT_GENERAL_CRM_QUERY,
+            doctor_name=data.get("doctor_name"),
+            hospital=data.get("hospital"),
+            city=data.get("city"),
+            specialization=data.get("specialization"),
+            phone=data.get("phone"),
+            email=data.get("email"),
+            product=data.get("product"),
+            doctor_request=data.get("doctor_request"),
+            follow_up_display=data.get("follow_up_display"),
+            meeting_time_display=data.get("meeting_time_display"),
+            reminder_display=data.get("reminder_display"),
+            reminder_minutes=data.get("reminder_minutes"),
+            is_new_hcp=bool(data.get("is_new_hcp")),
+            is_anaphoric=bool(data.get("is_anaphoric")),
+            corrections=data.get("corrections") or {},
+            conversational_reply=data.get("conversational_reply"),
+            confidence=0.95,
+        )
+
+        if res.doctor_name:
+            if not is_valid_person_name(res.doctor_name):
+                res.doctor_name = None
+            else:
+                res.doctor_name = clean_doctor_name(res.doctor_name)
+
+        return res
+
+    except Exception as e:
+        logger.warning(f"[LLM Understanding] Live LLM call failed or skipped: {e}")
+        return None
+
+
 def understand_user_request(
     transcript: str,
     context: Optional[Dict[str, Any]] = None,
     history: Optional[List[Any]] = None,
+    preferred_provider: Optional[str] = None,
 ) -> UnderstandingResult:
+    """
+    Unified entrypoint for user understanding, routing through ReasoningEngine.
+    """
     ctx = context or {}
-    return fallback_rule_understanding(transcript, ctx)
+    from app.ai.reasoning_engine import reasoning_engine
+
+    r = reasoning_engine.reason(
+        transcript=transcript,
+        context=ctx,
+        history=history,
+        preferred_provider=preferred_provider,
+    )
+
+    res = UnderstandingResult(
+        language=r.language,
+        intent=r.intent,
+        doctor_name=r.doctor_name,
+        hospital=r.hospital,
+        city=r.city,
+        specialization=r.specialization,
+        phone=r.phone,
+        email=r.email,
+        product=r.product,
+        doctor_request=r.doctor_request,
+        meeting_summary=r.meeting_summary,
+        follow_up_date=r.follow_up_date,
+        follow_up_display=r.follow_up_display,
+        meeting_time=r.meeting_time,
+        meeting_time_display=r.meeting_time_display,
+        reminder_minutes=r.reminder_minutes,
+        reminder_display=r.reminder_display,
+        location=r.location,
+        is_new_hcp=r.is_new_hcp,
+        is_anaphoric=r.is_anaphoric,
+        is_override=r.is_override,
+        override_target=r.override_target,
+        actions=r.actions,
+        corrections=r.corrections,
+        conversational_reply=r.conversational_reply,
+        confidence=r.confidence,
+    )
+
+    return res
