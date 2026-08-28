@@ -283,11 +283,19 @@ export function LogMeeting() {
       }
     } catch (err) {
       console.error("AI meeting error:", err);
-      setErrorMessage(
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Could not process meeting notes. Please check your notes and try again."
-      );
+      if (err?.response?.status === 401) {
+        setErrorMessage("Your session has expired. Please sign in again.");
+        setTimeout(() => {
+          navigate("/login", { replace: true });
+        }, 1500);
+      } else {
+        setErrorMessage(
+          err?.userMessage ||
+          err?.response?.data?.detail ||
+          err?.message ||
+          "Could not process meeting notes. Please check your notes and try again."
+        );
+      }
       setPipelineState("error");
     }
   };

@@ -126,6 +126,7 @@ class VoiceCopilotState(BaseModel):
     override_target: Optional[str] = None
 
     resolved_hcp: Optional[Dict[str, Any]] = None
+    resolved_hcps: List[Dict[str, Any]] = []
     ambiguous_candidates: List[Dict[str, Any]] = []
     confidence: float = 1.0
     needs_clarification: bool = False
@@ -208,6 +209,32 @@ def resolve_entities(state: VoiceCopilotState) -> dict:
             "current_hcp_id": None,
             "current_hcp_name": clean_target,
             "is_anaphoric": False,
+        }
+
+    # Priority 1.5: Multiple Doctors Mentioned (e.g. "both Kamal and Sita", "Rajesh, Priyanka and Ananya")
+    if und and und.doctors and len(und.doctors) > 1:
+        resolved_list = []
+        for d_str in und.doctors:
+            clean_d = clean_doctor_name(d_str) or d_str
+            match_res = match_hcp_from_db(db, clean_d)
+            best = match_res.get("best_match")
+            if best and match_res.get("confidence", 0.0) >= 0.65:
+                resolved_list.append(best)
+            else:
+                resolved_list.append({
+                    "id": None,
+                    "doctor_name": clean_d,
+                    "hospital": und.hospital or "Hospital Clinic",
+                    "city": und.city or "",
+                    "specialization": und.specialization or "General Medicine",
+                    "is_new": True,
+                })
+        return {
+            "resolved_hcps": resolved_list,
+            "resolved_hcp": resolved_list[0] if resolved_list else None,
+            "current_hcp_name": ", ".join([d.get("doctor_name") for d in resolved_list]),
+            "confidence": 0.95,
+            "needs_clarification": False,
         }
 
     # Skip DB resolution for confirmation/cancellation/CRM analytics/briefing
@@ -510,6 +537,98 @@ def plan_actions_and_review(state: VoiceCopilotState) -> dict:
 
     # 1. Handle Schedule Meeting Planning (Future Calendar Meeting)
     if intent == INTENT_SCHEDULE_MEETING:
+        # Multi-Doctor Proposal Check (First Priority)
+        multi_docs = state.resolved_hcps if state.resolved_hcps and len(state.resolved_hcps) > 1 else None
+        if not multi_docs and und and und.doctors and len(und.doctors) > 1:
+            multi_docs = []
+            for d_name_raw in und.doctors:
+                cl_d = clean_doctor_name(d_name_raw) or d_name_raw
+                m_res = match_hcp_from_db(db, cl_d)
+                b = m_res.get("best_match")
+                if b and m_res.get("confidence", 0.0) >= 0.65:
+                    multi_docs.append(b)
+                else:
+                    multi_docs.append({
+                        "id": None,
+                        "doctor_name": cl_d,
+                        "hospital": und.hospital or "Apollo Hospital",
+                        "city": und.city or "Hyderabad",
+                        "specialization": "General Medicine",
+                    })
+
+        if multi_docs and len(multi_docs) > 1:
+            dt_disp = (und.follow_up_display if und and und.follow_up_display else None) or "September 03, 2026"
+            tm_disp = (und.meeting_time_display if und and und.meeting_time_display else None) or "03:00 PM"
+            rem_disp = (und.reminder_display if und and und.reminder_display else None) or "30 minutes before"
+            rem_min = (und.reminder_minutes if und and und.reminder_minutes else None) or 30
+
+            doctor_items = []
+            for doc_item in multi_docs:
+                d_nm = doc_item.get("doctor_name")
+                d_hosp = doc_item.get("hospital") or "Apollo Hospital"
+                d_id_val = doc_item.get("id")
+
+                d_date = dt_disp
+                d_time = tm_disp
+                if und and und.hcp_entities:
+                    for ent in und.hcp_entities:
+                        if d_nm.lower() in (ent.get("name") or "").lower() or (ent.get("name") or "").lower() in d_nm.lower():
+                            if ent.get("date"): d_date = ent.get("date")
+                            if ent.get("time"): d_time = ent.get("time")
+
+                doctor_items.append({
+                    "hcp_id": d_id_val,
+                    "hcp_name": d_nm,
+                    "doctor_name": d_nm,
+                    "hospital": d_hosp,
+                    "city": doc_item.get("city") or "Hyderabad",
+                    "specialization": doc_item.get("specialization") or "General Medicine",
+                    "meeting_date_display": d_date,
+                    "meeting_time_display": d_time,
+                    "reminder_display": rem_disp,
+                    "reminder_minutes": rem_min,
+                })
+
+            names_str = " and ".join([d["doctor_name"] for d in doctor_items])
+            prompt = (
+                f"{names_str} తో meetings రివ్యూ సిద్ధంగా ఉంది ({dt_disp} at {tm_disp}). షెడ్యూల్ చేయడానికి confirm చేయండి."
+                if is_te
+                else f"Here is the meeting review for {names_str} on {dt_disp} at {tm_disp}. Please review and confirm to schedule."
+            )
+
+            action_id = str(uuid.uuid4())[:8]
+            pending_action = {
+                "action_id": action_id,
+                "type": "SCHEDULE_MEETING",
+                "is_multi_doctor": True,
+                "doctors": doctor_items,
+                "meeting_date_display": dt_disp,
+                "meeting_time_display": tm_disp,
+                "reminder_display": rem_disp,
+                "actions": ["SCHEDULE_MEETING"],
+            }
+
+            card_data = {
+                "type": "meeting_schedule_confirmation",
+                "action_id": action_id,
+                "is_multi_doctor": True,
+                "doctors": doctor_items,
+                "doctor_name": names_str,
+                "meeting_date_display": dt_disp,
+                "meeting_time_display": tm_disp,
+                "reminder_display": rem_disp,
+                "actions": ["SCHEDULE_MEETING"],
+            }
+
+            return {
+                "pending_confirmation": True,
+                "pending_action": pending_action,
+                "current_hcp_name": names_str,
+                "card_data": card_data,
+                "response": prompt,
+            }
+
+        # Single Doctor Resolution
         target_hcp = state.resolved_hcp
         if not target_hcp and und and und.doctor_name:
             match_res = match_hcp_from_db(db, und.doctor_name)
@@ -555,6 +674,92 @@ def plan_actions_and_review(state: VoiceCopilotState) -> dict:
         rem_disp = (und.reminder_display if und and und.reminder_display else None) or "30 minutes before"
         rem_min = (und.reminder_minutes if und and und.reminder_minutes else None) or 30
         loc_str = f"{hosp} · {city}" if city and city.lower() not in hosp.lower() else hosp
+
+        # Multi-Doctor Proposal Handling
+        multi_docs = state.resolved_hcps if state.resolved_hcps and len(state.resolved_hcps) > 1 else None
+        if not multi_docs and und and und.doctors and len(und.doctors) > 1:
+            multi_docs = []
+            for d_name_raw in und.doctors:
+                cl_d = clean_doctor_name(d_name_raw) or d_name_raw
+                m_res = match_hcp_from_db(db, cl_d)
+                b = m_res.get("best_match")
+                if b and m_res.get("confidence", 0.0) >= 0.65:
+                    multi_docs.append(b)
+                else:
+                    multi_docs.append({
+                        "id": None,
+                        "doctor_name": cl_d,
+                        "hospital": hosp,
+                        "city": city,
+                        "specialization": "General Medicine",
+                    })
+
+        if multi_docs and len(multi_docs) > 1:
+            doctor_items = []
+            for doc_item in multi_docs:
+                d_nm = doc_item.get("doctor_name")
+                d_hosp = doc_item.get("hospital") or hosp
+                d_id_val = doc_item.get("id")
+                
+                # Check if specific date/time for this doctor exists
+                d_date = dt_disp
+                d_time = tm_disp
+                if und and und.hcp_entities:
+                    for ent in und.hcp_entities:
+                        if d_nm.lower() in (ent.get("name") or "").lower() or (ent.get("name") or "").lower() in d_nm.lower():
+                            if ent.get("date"): d_date = ent.get("date")
+                            if ent.get("time"): d_time = ent.get("time")
+
+                doctor_items.append({
+                    "hcp_id": d_id_val,
+                    "hcp_name": d_nm,
+                    "doctor_name": d_nm,
+                    "hospital": d_hosp,
+                    "city": doc_item.get("city") or city,
+                    "specialization": doc_item.get("specialization") or "General Medicine",
+                    "meeting_date_display": d_date,
+                    "meeting_time_display": d_time,
+                    "reminder_display": rem_disp,
+                    "reminder_minutes": rem_min,
+                })
+
+            names_str = " and ".join([d["doctor_name"] for d in doctor_items])
+            prompt = (
+                f"{names_str} తో meetings రివ్యూ సిద్ధంగా ఉంది ({dt_disp} at {tm_disp}). షెడ్యూల్ చేయడానికి confirm చేయండి."
+                if is_te
+                else f"Here is the meeting review for {names_str} on {dt_disp} at {tm_disp}. Please review and confirm to schedule."
+            )
+
+            pending_action = {
+                "action_id": action_id,
+                "type": "SCHEDULE_MEETING",
+                "is_multi_doctor": True,
+                "doctors": doctor_items,
+                "meeting_date_display": dt_disp,
+                "meeting_time_display": tm_disp,
+                "reminder_display": rem_disp,
+                "actions": ["SCHEDULE_MEETING"],
+            }
+
+            card_data = {
+                "type": "meeting_schedule_confirmation",
+                "action_id": action_id,
+                "is_multi_doctor": True,
+                "doctors": doctor_items,
+                "doctor_name": names_str,
+                "meeting_date_display": dt_disp,
+                "meeting_time_display": tm_disp,
+                "reminder_display": rem_disp,
+                "actions": ["SCHEDULE_MEETING"],
+            }
+
+            return {
+                "pending_confirmation": True,
+                "pending_action": pending_action,
+                "current_hcp_name": names_str,
+                "card_data": card_data,
+                "response": prompt,
+            }
 
         pending_action = {
             "action_id": action_id,
@@ -1081,10 +1286,35 @@ def execute_crm_tool(state: VoiceCopilotState) -> dict:
 
         if not tx_res.get("success"):
             logger.error(f"[VoiceCopilot] Atomic transaction failed: {tx_res.get('error')}")
+            failed_act = dict(action)
+            failed_act["status"] = "failed"
+            failed_act["last_error"] = tx_res.get("error")
+
+            is_schedule = action.get("type") == "SCHEDULE_MEETING"
+            card_type = "meeting_schedule_card" if is_schedule else "meeting_capture_card"
+            card_data = {
+                "type": card_type,
+                "action_id": act_id,
+                "is_multi_doctor": action.get("is_multi_doctor", False),
+                "doctors": action.get("doctors", []),
+                "doctor_name": action.get("hcp_name") or action.get("doctor_name"),
+                "hospital": action.get("hospital"),
+                "city": action.get("city"),
+                "specialization": action.get("specialization"),
+                "meeting_date_display": action.get("meeting_date_display"),
+                "meeting_time_display": action.get("meeting_time_display"),
+                "location": action.get("location"),
+                "reminder_display": action.get("reminder_display"),
+                "follow_up_display": action.get("follow_up_display"),
+                "status": "failed",
+                "is_completed": False,
+                "error_message": tx_res.get("error") or "Database transaction failed",
+            }
             return {
-                "pending_confirmation": False,
-                "pending_action": None,
-                "response": "I encountered an issue saving your request to the database. Please try again.",
+                "pending_confirmation": True,
+                "pending_action": failed_act,
+                "card_data": card_data,
+                "response": "I encountered an issue saving your request to the database. Please try again or say 'retry' / 'yes' to save.",
                 "error": tx_res.get("error"),
             }
 
@@ -1096,7 +1326,10 @@ def execute_crm_tool(state: VoiceCopilotState) -> dict:
         card_type = "meeting_schedule_card" if is_schedule else "meeting_capture_card"
         card_data = {
             "type": card_type,
-            "doctor_name": action.get("hcp_name"),
+            "action_id": act_id,
+            "is_multi_doctor": action.get("is_multi_doctor", False),
+            "doctors": action.get("doctors", []),
+            "doctor_name": action.get("hcp_name") or action.get("doctor_name"),
             "hospital": action.get("hospital"),
             "city": action.get("city"),
             "specialization": action.get("specialization"),
@@ -1110,29 +1343,38 @@ def execute_crm_tool(state: VoiceCopilotState) -> dict:
         }
 
         # Success Response Generation
-        doc_n = action.get("hcp_name", "Doctor")
-        if is_schedule:
-            m_dt = action.get("meeting_date_display", "the scheduled date")
-            m_tm = action.get("meeting_time_display", "the scheduled time")
+        if action.get("is_multi_doctor") and action.get("doctors"):
+            doc_names_list = [d.get("hcp_name") or d.get("doctor_name") for d in action.get("doctors")]
+            doc_n = " and ".join(doc_names_list)
             resp = (
-                f"సరే! {doc_n} తో {m_dt} న {m_tm} కి meeting విజయవంతంగా షెడ్యూల్ చేయబడింది."
+                f"{doc_n} తో meetings విజయవంతంగా షెడ్యూల్ చేయబడ్డాయి."
                 if is_te
-                else f"Done. I have scheduled the meeting with {doc_n} for {m_dt} at {m_tm}."
+                else f"Done. I have scheduled meetings for {doc_n}."
             )
         else:
-            fu_d = action.get("follow_up_display")
-            fu_s = f" and scheduled the follow-up for {fu_d}" if fu_d and fu_d != "None" else ""
-            resp = (
-                f"సరే! {doc_n} తో మీటింగ్‌ వివరాలు సేవ్ చేయబడ్డాయి."
-                if is_te
-                else f"Done. I logged the interaction with {doc_n}{fu_s}."
-            )
+            doc_n = action.get("hcp_name") or action.get("doctor_name", "Doctor")
+            if is_schedule:
+                m_dt = action.get("meeting_date_display", "the scheduled date")
+                m_tm = action.get("meeting_time_display", "the scheduled time")
+                resp = (
+                    f"సరే! {doc_n} తో {m_dt} న {m_tm} కి meeting విజయవంతంగా షెడ్యూల్ చేయబడింది."
+                    if is_te
+                    else f"Done. I have scheduled the meeting with {doc_n} for {m_dt} at {m_tm}."
+                )
+            else:
+                fu_d = action.get("follow_up_display")
+                fu_s = f" and scheduled the follow-up for {fu_d}" if fu_d and fu_d != "None" else ""
+                resp = (
+                    f"సరే! {doc_n} తో మీటింగ్‌ వివరాలు సేవ్ చేయబడ్డాయి."
+                    if is_te
+                    else f"Done. I logged the interaction with {doc_n}{fu_s}."
+                )
 
         return {
             "pending_confirmation": False,
             "pending_action": None,
             "current_hcp_id": tx_res.get("created_entities", {}).get("hcp_id") or action.get("hcp_id"),
-            "current_hcp_name": action.get("hcp_name"),
+            "current_hcp_name": action.get("hcp_name") or action.get("doctor_name"),
             "card_data": card_data,
             "response": resp,
             "tool_result": tx_res,

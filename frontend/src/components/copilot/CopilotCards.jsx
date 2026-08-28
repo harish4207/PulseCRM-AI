@@ -780,28 +780,50 @@ export function MeetingScheduleCard({ data, onConfirm, onCancel, onUpdateMeeting
       ) : (
         <>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
-              {doctor_name}
-            </div>
-            {specialization && (
-              <div style={{ fontSize: "0.72rem", color: "#0284c7", fontWeight: 600 }}>
-                {specialization}
+            {data.is_multi_doctor && data.doctors && data.doctors.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#0369a1" }}>
+                  Multi-Doctor Meeting Schedule ({data.doctors.length} Doctors):
+                </div>
+                {data.doctors.map((doc, idx) => (
+                  <div key={idx} style={{ padding: "0.45rem 0.65rem", borderRadius: "8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", fontSize: "0.775rem" }}>
+                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{doc.hcp_name || doc.doctor_name}</div>
+                    <div style={{ color: "#475569", fontSize: "0.72rem" }}>{doc.hospital} · {doc.meeting_date_display} at {doc.meeting_time_display}</div>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <>
+                <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>
+                  {doctor_name}
+                </div>
+                {specialization && (
+                  <div style={{ fontSize: "0.72rem", color: "#0284c7", fontWeight: 600 }}>
+                    {specialization}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.775rem", color: "#475569" }}>
+                  <HospitalIcon style={{ fontSize: "0.9rem", color: "#0284c7" }} />
+                  <span>{hospLoc}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.775rem", color: "#0f172a", fontWeight: 600, marginTop: "0.1rem" }}>
+                  <EventIcon style={{ fontSize: "0.9rem", color: "#0284c7" }} />
+                  <span>{meeting_date_display} · {meeting_time_display}</span>
+                </div>
+              </>
             )}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.775rem", color: "#475569" }}>
-              <HospitalIcon style={{ fontSize: "0.9rem", color: "#0284c7" }} />
-              <span>{hospLoc}</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.775rem", color: "#0f172a", fontWeight: 600, marginTop: "0.1rem" }}>
-              <EventIcon style={{ fontSize: "0.9rem", color: "#0284c7" }} />
-              <span>{meeting_date_display} · {meeting_time_display}</span>
-            </div>
             {reminder_display && reminder_display.toLowerCase() !== "no reminder" && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: "#64748b" }}>
                 <span>🔔 Reminder: {reminder_display}</span>
               </div>
             )}
           </div>
+
+          {status === "failed" && (
+            <div style={{ padding: "0.45rem 0.65rem", borderRadius: "6px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", fontSize: "0.75rem", color: "#b91c1c", fontWeight: 600 }}>
+              ⚠️ {data.error_message || "Transaction failed"}. You can retry or confirm again below.
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.15rem" }}>
             <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.15rem 0.45rem", borderRadius: "4px", backgroundColor: "#e0f2fe", color: "#0369a1" }}>
@@ -828,6 +850,15 @@ export function MeetingScheduleCard({ data, onConfirm, onCancel, onUpdateMeeting
               </button>
               <button type="button" onClick={onCancel} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.45rem 0.8rem", borderRadius: "6px", backgroundColor: "#ffffff", color: "#dc2626", border: "1px solid #fecaca", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}>
                 <CancelIcon style={{ fontSize: "0.85rem" }} /> Cancel
+              </button>
+            </div>
+          ) : status === "failed" ? (
+            <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", marginTop: "0.35rem" }}>
+              <button type="button" onClick={onConfirm} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.45rem 0.85rem", borderRadius: "6px", backgroundColor: "#dc2626", color: "#ffffff", border: "none", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", boxShadow: "0 1px 2px rgba(220,38,38,0.2)" }}>
+                <CheckIcon style={{ fontSize: "0.85rem" }} /> Retry Save
+              </button>
+              <button type="button" onClick={onCancel} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.45rem 0.8rem", borderRadius: "6px", backgroundColor: "#ffffff", color: "#64748b", border: "1px solid #cbd5e1", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}>
+                <CancelIcon style={{ fontSize: "0.85rem" }} /> Dismiss
               </button>
             </div>
           ) : (

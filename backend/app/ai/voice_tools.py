@@ -1005,6 +1005,11 @@ def execute_atomic_crm_transaction(
         hcp = None
         if hcp_id:
             hcp = db.query(HCP).filter(HCP.id == hcp_id).first()
+            if not hcp and not ("CREATE_HCP" in actions or rec.get("is_new_hcp")):
+                raise ValueError(f"HCP with ID {hcp_id} does not exist in database.")
+
+        if rec.get("_simulate_failure"):
+            raise ValueError("Simulated database transaction error.")
 
         doc_name = clean_doctor_name(hcp_data.get("doctor_name") or rec.get("doctor_name") or rec.get("hcp_name") or (hcp.doctor_name if hcp else None))
         is_new_hcp = hcp_data.get("is_new_hcp", False) or "CREATE_HCP" in actions or rec.get("is_new_hcp", False)
@@ -1113,8 +1118,68 @@ def execute_atomic_crm_transaction(
             or rec.get("meeting_time_display")
         )
 
-        new_sm = None
-        if has_meeting and hcp_id:
+        # 4. Multi-Doctor Scheduled Meetings Creation
+        if rec.get("is_multi_doctor") and rec.get("doctors"):
+            for doc_item in rec.get("doctors"):
+                d_id = doc_item.get("hcp_id")
+                d_name = doc_item.get("hcp_name") or doc_item.get("doctor_name")
+                if not d_id and d_name:
+                    found_d = db.query(HCP).filter(HCP.doctor_name.ilike(f"%{d_name}%")).first()
+                    if found_d:
+                        d_id = found_d.id
+                    else:
+                        new_h = HCP(
+                            doctor_name=d_name,
+                            hospital=doc_item.get("hospital") or "Hospital Clinic",
+                            specialization=doc_item.get("specialization") or "General Medicine",
+                            city=doc_item.get("city") or "",
+                        )
+                        db.add(new_h)
+                        db.flush()
+                        d_id = new_h.id
+
+                if d_id:
+                    m_time_str = doc_item.get("meeting_time_display") or doc_item.get("meeting_time") or rec.get("meeting_time_display")
+                    m_date_str = doc_item.get("meeting_date_display") or rec.get("meeting_date_display")
+                    combined_time_str = f"{m_date_str} {m_time_str}" if m_date_str and m_time_str else (m_time_str or m_date_str)
+                    m_time_dt = _parse_dt_safe(combined_time_str)
+                    if not m_time_dt:
+                        m_time_dt = datetime.now() + timedelta(days=3, hours=3)
+
+                    disp_str = f"{m_date_str} at {m_time_str}" if m_date_str and m_time_str else m_time_dt.strftime("%A, %B %d, %Y at %I:%M %p")
+                    loc = doc_item.get("hospital") or doc_item.get("location") or "Hospital Clinic"
+
+                    sm = ScheduledMeeting(
+                        user_id=user_id,
+                        hcp_id=d_id,
+                        meeting_time=m_time_dt,
+                        meeting_time_display=disp_str,
+                        location=loc,
+                        notes=f"Meeting with {d_name}.",
+                        status="scheduled",
+                    )
+                    db.add(sm)
+                    db.flush()
+                    created_meeting_id = sm.id
+
+                    rem_m = doc_item.get("reminder_minutes")
+                    if rem_m is None:
+                        rem_m = rec.get("reminder_minutes")
+                    if rem_m and rem_m > 0:
+                        r_at = m_time_dt - timedelta(minutes=rem_m)
+                        mr = MeetingReminder(
+                            meeting_id=sm.id,
+                            user_id=user_id,
+                            remind_at=r_at,
+                            remind_offset_minutes=rem_m,
+                            status="pending",
+                        )
+                        db.add(mr)
+                        db.flush()
+                        created_reminder_id = mr.id
+
+        # 5. Single Doctor Scheduled Meeting & Reminder Creation
+        elif has_meeting and hcp_id:
             meeting_time = None
             raw_m_time = meet_data.get("time") or rec.get("meeting_time") or rec.get("meeting_time_display")
 

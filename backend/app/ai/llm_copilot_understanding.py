@@ -63,6 +63,8 @@ class UnderstandingResult(BaseModel):
     language: str = "en"
     intent: str = INTENT_UNKNOWN
     doctor_name: Optional[str] = None
+    doctors: List[str] = []
+    hcp_entities: List[Dict[str, Any]] = []
     hospital: Optional[str] = None
     city: Optional[str] = None
     specialization: Optional[str] = None
@@ -400,18 +402,31 @@ def fallback_rule_understanding(
         res.location = details["location"]
         res.actions = details["planned_actions"]
 
-        # Extract doctor name
-        doc_m_before_post = re.search(r"([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)\s+(?:tho|ni|ki|తో|ని|కి|గారు|garu|gaaru)", norm, re.IGNORECASE)
-        doc_m_after_verb = re.search(r"(?:meet|with|doctor|dr\.?)\s+(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
+        # Check for multiple doctors mentioned
+        multi_m = re.findall(r"\b(?:dr\.?\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", norm)
+        stop_words = {
+            "both", "and", "september", "october", "november", "december", "january", "february",
+            "march", "april", "may", "june", "july", "august", "friday", "monday", "tuesday",
+            "wednesday", "thursday", "saturday", "sunday", "tomorrow", "today", "yesterday",
+            "doctor", "meeting", "schedule", "with", "at", "pm", "am", "remind", "me", "hospital"
+        }
+        valid_docs = [clean_doctor_name(d) for d in multi_m if is_valid_person_name(d) and d.lower() not in stop_words]
+        if len(valid_docs) > 1:
+            res.doctors = valid_docs
+            res.doctor_name = valid_docs[0]
+        else:
+            # Extract single doctor name
+            doc_m_before_post = re.search(r"([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)\s+(?:tho|ni|ki|తో|ని|కి|గారు|garu|gaaru)", norm, re.IGNORECASE)
+            doc_m_after_verb = re.search(r"(?:meet|with|doctor|dr\.?)\s+(?:dr\.?\s+)?([A-Za-z\u0C00-\u0C7F]+(?:\s+[A-Za-z\u0C00-\u0C7F]+)?)", norm, re.IGNORECASE)
 
-        if doc_m_before_post:
-            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_before_post.group(1), flags=re.IGNORECASE).strip()
-            if cand and len(cand) >= 2:
-                res.doctor_name = cand
-        elif doc_m_after_verb:
-            cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_after_verb.group(1), flags=re.IGNORECASE).strip()
-            if cand and len(cand) >= 2:
-                res.doctor_name = cand
+            if doc_m_before_post:
+                cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_before_post.group(1), flags=re.IGNORECASE).strip()
+                if cand and len(cand) >= 2:
+                    res.doctor_name = cand
+            elif doc_m_after_verb:
+                cand = re.sub(r"\b(meet|with|doctor|dr|డాక్టర్|గారు|tomorrow|repu|friday|monday|tuesday|wednesday|thursday|saturday|sunday|today|at|on|tho|ni|ki|ga|schedule|a|3|pm|am|remind|me|to|him|her|he|she|aayana|aavida|next)\b", "", doc_m_after_verb.group(1), flags=re.IGNORECASE).strip()
+                if cand and len(cand) >= 2:
+                    res.doctor_name = cand
 
         if (not res.doctor_name or any(p in lower for p in ["him", "her", "he", "she", "aayana", "aavida"])) and current_hcp_name:
             res.is_anaphoric = True
@@ -760,6 +775,8 @@ def llm_reasoning_understanding(
             language=data.get("language") or detect_language(transcript),
             intent=data.get("intent") or INTENT_GENERAL_CRM_QUERY,
             doctor_name=data.get("doctor_name"),
+            doctors=data.get("doctors") or [],
+            hcp_entities=data.get("hcp_entities") or [],
             hospital=data.get("hospital"),
             city=data.get("city"),
             specialization=data.get("specialization"),
@@ -814,6 +831,8 @@ def understand_user_request(
         language=r.language,
         intent=r.intent,
         doctor_name=r.doctor_name,
+        doctors=r.doctors,
+        hcp_entities=r.hcp_entities,
         hospital=r.hospital,
         city=r.city,
         specialization=r.specialization,

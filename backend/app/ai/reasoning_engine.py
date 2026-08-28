@@ -147,6 +147,8 @@ class ReasoningResult(BaseModel):
     requires_crm_tool: bool = False
     crm_tool_name: Optional[str] = None
     doctor_name: Optional[str] = None
+    doctors: List[str] = []
+    hcp_entities: List[Dict[str, Any]] = []
     hospital: Optional[str] = None
     city: Optional[str] = None
     specialization: Optional[str] = None
@@ -185,9 +187,9 @@ Analyze whether the message is:
 3. CONVERSATIONAL_QUESTION: Conversational advice, rep guidance, pre-visit tips, general pharma discussions. Requires NO CRM tool. Provide a thoughtful, grounded answer in conversational_reply.
 4. CRM_QUERY: Asking for specific CRM data. Set requires_crm_tool=true and choose the matching crm_tool_name from AVAILABLE CRM TOOLS.
 5. CRM_MUTATION: Logging meetings, scheduling future meetings, creating HCPs, recording sample/brochure requests.
-6. CONFIRMATION: Confirming a pending proposal (e.g., "Confirm", "Save everything", "Yes proceed", "Avunu save cheyyi").
+6. CONFIRMATION: Confirming a pending proposal (e.g., "Confirm", "Save everything", "Save both", "Yes proceed", "Avunu save cheyyi").
 7. CANCELLATION: Cancelling a pending proposal (e.g., "Cancel", "Don't save", "Vaddu").
-8. CORRECTION: Modifying specific slots in an active draft (e.g., "Actually make it 4 PM", "Actually don't remind me", "I meant Dr Sharma, not Ananya").
+8. CORRECTION: Modifying specific slots in an active draft or keeping existing state (e.g., "Actually make it 4 PM", "Actually don't remind me", "I meant Dr Sharma, not Ananya", "Make Kamal Friday", "Cancel Sita", "Keep Sita as it is", "Keep everything", "Leave Sita as is").
 9. CLARIFICATION: Rep is answering a clarification prompt (e.g., providing doctor name or hospital).
 
 AVAILABLE CRM TOOLS:
@@ -203,13 +205,19 @@ AVAILABLE CRM TOOLS:
 - GET_PRE_MEETING_INTELLIGENCE: Pre-visit briefing summary for a doctor
 - GET_CRM_ANALYTICS: Weekly/monthly visit metrics
 - CAPTURE_MEETING: Log past doctor visit, interaction notes, product discussion, brochure request
-- SCHEDULE_MEETING: Schedule future calendar appointment with date, time, and reminder
+- SCHEDULE_MEETING: Schedule future calendar appointment with date, time, and reminder (supports single doctor or multiple doctors)
 - CREATE_FOLLOWUP: Schedule future task/follow-up date
 - CREATE_HCP: Add new doctor to territory directory
 - CONFIRM_ACTION: User confirms proposal to commit to CRM
 - CANCEL_ACTION: User cancels pending proposal
 - CORRECT_PENDING_ACTION: User modifies time, date, reminder, or doctor in proposal
 - GENERAL_CRM_QUERY: Greetings, capability questions, conversational advice, or prep discussions (requires NO CRM tool)
+
+MULTIPLE DOCTOR ENTITY RECOGNITION:
+If the user mentions multiple doctors in the same request (e.g. "both Kamal and Sita", "Rajesh, Priyanka and Ananya", "meet Kamal tomorrow and Sita Friday"):
+- Output each doctor in the "doctors" array: ["Dr. Kamal", "Dr. Sita"].
+- In "hcp_entities", provide an array of objects specifying individual details if mentioned: [{"name": "Dr. Kamal", "date": "tomorrow", "time": "03:00 PM"}, {"name": "Dr. Sita", "date": "Friday", "time": "04:00 PM"}].
+- NEVER merge multiple doctors into a single comma-separated string in "doctor_name"!
 
 CRITICAL PHARMACEUTICAL SAFETY MANDATE:
 You must NEVER invent clinical trial numbers, percentages, efficacy claims, unapproved indications, or medical facts. If verified product information is not present in the CRM or approved knowledge base, explicitly state that the information is unavailable in your territory CRM database.
@@ -221,7 +229,9 @@ Output a valid JSON object matching this schema:
   "intent": "GENERAL_CRM_QUERY" | "GET_HCP_DETAILS" | "GET_HCP_INTERACTIONS" | "GET_HCP_FOLLOWUPS" | "GET_ALL_FOLLOWUPS" | "GET_RECENT_INTERACTIONS" | "GET_PRODUCT_DISCUSSIONS" | "GET_HOSPITAL_DETAILS" | "GET_CRM_BRIEF" | "GET_NEXT_ACTION" | "GET_PRE_MEETING_INTELLIGENCE" | "GET_CRM_ANALYTICS" | "CAPTURE_MEETING" | "SCHEDULE_MEETING" | "CREATE_HCP" | "CREATE_INTERACTION" | "CREATE_FOLLOWUP" | "CONFIRM_ACTION" | "CANCEL_ACTION" | "CORRECT_PENDING_ACTION",
   "requires_crm_tool": boolean,
   "crm_tool_name": string or null,
-  "doctor_name": string or null,          // Real person name only. NEVER temporal words like "today", "tomorrow", "yesterday", weekdays, months, verbs, or generic nouns.
+  "doctor_name": string or null,          // Single doctor name if only one doctor is mentioned
+  "doctors": list of strings,             // List of all doctor names if multiple doctors are mentioned (e.g. ["Dr. Kamal", "Dr. Sita"]). Empty list if only one or zero.
+  "hcp_entities": list of objects,        // Optional list of doctor objects e.g. [{"name": "Dr. Kamal", "date": "tomorrow"}, {"name": "Dr. Sita", "date": "Friday"}]
   "hospital": string or null,             // Hospital or clinic name (e.g. "KIMS Hospital", "Care Hospital")
   "city": string or null,                 // City (e.g. "Hyderabad", "Visakhapatnam")
   "specialization": string or null,       // Specialty (e.g. "Cardiologist")
@@ -450,7 +460,11 @@ class ReasoningEngine:
         lower = transcript.strip().lower()
         msg_type = MSG_CRM_QUERY
 
-        if any(lower == g or lower.startswith(f"{g} ") for g in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "namaste", "namaskaram", "hi pulse", "hello pulse"]):
+        if any(k in lower for k in ["keep everything", "keep as it is", "keep sita", "keep as is", "leave it", "leave sita"]):
+            if context.get("pending_action") or context.get("pending_confirmation"):
+                msg_type = MSG_CORRECTION
+                und.intent = INTENT_CORRECT_PENDING_ACTION
+        elif any(lower == g or lower.startswith(f"{g} ") for g in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "namaste", "namaskaram", "hi pulse", "hello pulse"]):
             msg_type = MSG_GREETING
             und.intent = INTENT_GENERAL_CRM_QUERY
             und.conversational_reply = "Hello! How can I help with your territory, doctor visits, or scheduled meetings today?"
@@ -486,6 +500,8 @@ class ReasoningEngine:
             requires_crm_tool=requires_tool,
             crm_tool_name=und.intent if requires_tool else None,
             doctor_name=und.doctor_name,
+            doctors=und.doctors,
+            hcp_entities=und.hcp_entities,
             hospital=und.hospital,
             city=und.city,
             specialization=und.specialization,
@@ -614,6 +630,8 @@ class ReasoningEngine:
             requires_crm_tool=requires_tool,
             crm_tool_name=data.get("crm_tool_name") or (intent if requires_tool else None),
             doctor_name=data.get("doctor_name"),
+            doctors=data.get("doctors") or [],
+            hcp_entities=data.get("hcp_entities") or [],
             hospital=data.get("hospital"),
             city=data.get("city"),
             specialization=data.get("specialization"),
